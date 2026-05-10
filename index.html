@@ -133,10 +133,13 @@
     // 1. The Player (Flying Businessman with sprite animation)
     const player = {
         x: 80, y: 350,
-        baseWidth: 48, baseHeight: 48,
-        hitWidth: 48, hitHeight: 48,
+        baseWidth: 48, baseHeight: 64,
+        hitWidth: 48, hitHeight: 64,
         velocity: 0, gravity: 0.4, lift: -7.5, rotation: 0,
         animFrame: 0,
+        spriteFrameWidth: 48,
+        spriteFrameHeight: 64,
+        totalFrames: 8,
         
         draw: function() {
             if (invincibilityTimer > 0 && Math.floor(frames / 5) % 2 === 0) return;
@@ -157,13 +160,13 @@
 
             // Draw sprite animation frame
             if (sprites.businessman.complete) {
-                this.animFrame = Math.floor((frames / 8) % 4);
-                const frameWidth = sprites.businessman.width / 4;
-                const frameHeight = sprites.businessman.height;
+                this.animFrame = Math.floor((frames / 6) % this.totalFrames);
                 ctx.drawImage(
                     sprites.businessman,
-                    this.animFrame * frameWidth, 0, frameWidth, frameHeight,
-                    -this.baseWidth/2, -this.baseHeight/2, this.baseWidth, this.baseHeight
+                    this.animFrame * this.spriteFrameWidth, 0, 
+                    this.spriteFrameWidth, this.spriteFrameHeight,
+                    -this.baseWidth/2, -this.baseHeight/2, 
+                    this.baseWidth, this.baseHeight
                 );
             } else {
                 // Fallback to simple rectangle if sprite not loaded
@@ -258,7 +261,7 @@
     const meetings = {
         array: [],
         width: 140,
-        minGap: 200, // SIGNIFICANTLY INCREASED from 120 to 200 for easy passage
+        minGap: 200,
         
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
@@ -279,54 +282,73 @@
                 drawBoxedText(ctx, m.title, m.x + 15, 15, this.width - 20, m.top - 20, "bold 13px 'Segoe UI', Arial", "#242424");
                 drawBoxedText(ctx, m.title, m.x + 15, logicalHeight - m.bottom + 15, this.width - 20, m.bottom - 20, "bold 13px 'Segoe UI', Arial", "#242424");
 
-                // --- CHICKEN BOSS WITH SPRITE ANIMATION ---
+                // --- CHICKEN BOSS WITH SPRITE ANIMATION AND IMPROVED LOGIC ---
                 if (m.hasChicken) {
-                    if (m.x < logicalWidth - 20) { m.animScale += (1 - m.animScale) * 0.15; }
-                    
-                    let chickenY = logicalHeight - m.bottom + 30; 
-                    let centerX = m.x - 20;
-                    let centerY = chickenY + 30;
-
-                    ctx.save();
-                    ctx.translate(centerX, centerY);
-                    ctx.scale(m.animScale, m.animScale); 
-                    
-                    // Draw chicken sprite with animation
-                    if (sprites.chicken.complete) {
-                        m.chickenFrame = Math.floor((frames / 10) % 4);
-                        const frameWidth = sprites.chicken.width / 4;
-                        const frameHeight = sprites.chicken.height;
-                        ctx.drawImage(
-                            sprites.chicken,
-                            m.chickenFrame * frameWidth, 0, frameWidth, frameHeight,
-                            -frameWidth/2, -frameHeight/2, frameWidth, frameHeight
-                        );
-                    } else {
-                        // Fallback: Teams Video Call UI Window
-                        ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(-70, -40, 110, 85);
-                        ctx.fillStyle = '#ffffff'; ctx.fillRect(-70, -40, 110, 80);
-                        ctx.fillStyle = '#242424'; ctx.fillRect(-68, -38, 106, 76);
+                    // Chicken appears only when meeting is visible on screen
+                    if (m.x > -200 && m.x < logicalWidth + 100) {
+                        if (m.x < logicalWidth - 20) { m.animScale += (1 - m.animScale) * 0.15; }
                         
-                        ctx.fillStyle = '#ffffff'; ctx.fillRect(-30, -10, 30, 40);
-                        ctx.fillStyle = '#ffb900'; ctx.fillRect(-10, -5, 15, 10);
-                        ctx.fillStyle = 'white'; ctx.fillRect(-20, -6, 8, 8);
-                        ctx.fillStyle = 'black'; ctx.fillRect(-16, -4, 4, 4);
+                        let chickenY = logicalHeight - m.bottom + 40; 
+                        let centerX = m.x + 30;
+                        let centerY = chickenY;
+                        
+                        // CONTROLLED CHICKEN SIZE
+                        const chickenDisplayWidth = 60;
+                        const chickenDisplayHeight = 60;
+
+                        ctx.save();
+                        ctx.translate(centerX, centerY);
+                        ctx.scale(m.animScale, m.animScale); 
+                        
+                        // Draw chicken sprite with smooth animation
+                        if (sprites.chicken.complete) {
+                            m.chickenFrame = Math.floor((frames / 8) % 8);
+                            const frameWidth = sprites.chicken.width / 8;
+                            const frameHeight = sprites.chicken.height;
+                            ctx.drawImage(
+                                sprites.chicken,
+                                m.chickenFrame * frameWidth, 0, 
+                                frameWidth, frameHeight,
+                                -chickenDisplayWidth/2, -chickenDisplayHeight/2, 
+                                chickenDisplayWidth, chickenDisplayHeight
+                            );
+                        } else {
+                            // Fallback: simple rectangle
+                            ctx.fillStyle = '#d83b01';
+                            ctx.fillRect(-chickenDisplayWidth/2, -chickenDisplayHeight/2, chickenDisplayWidth, chickenDisplayHeight);
+                        }
+
+                        // Floating Name Tag
+                        ctx.fillStyle = 'rgba(0,0,0,0.6)'; 
+                        ctx.fillRect(-35, 35, 70, 14);
+                        ctx.fillStyle = 'white'; 
+                        ctx.font = "10px 'Segoe UI'"; 
+                        ctx.textAlign = 'center';
+                        ctx.fillText("Director", 0, 46);
+                        ctx.textAlign = 'left';
+
+                        // Teams styled Callout Bubble
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.moveTo(-10, -60); ctx.lineTo(100, -60); ctx.lineTo(100, -10); ctx.lineTo(40, -10); ctx.lineTo(30, 0); ctx.lineTo(30, -10); ctx.lineTo(-10, -10);
+                        ctx.fill();
+                        ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1; ctx.stroke();
+
+                        drawBoxedText(ctx, m.chickenMessage, 0, -50, 100, 35, "600 11px 'Segoe UI', Arial", "#242424");
+                        
+                        ctx.restore();
+
+                        // CHICKEN ENCOUNTER LOGIC: Check collision with player
+                        if (m.x < player.x + player.hitWidth && m.x + 80 > player.x &&
+                            chickenY - 30 < player.y + player.hitHeight && chickenY + 30 > player.y) {
+                            
+                            // Chicken collision detected
+                            if (!m.chickenCollided) {
+                                m.chickenCollided = true;
+                                handleChickenCollision();
+                            }
+                        }
                     }
-
-                    // Floating Name Tag
-                    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-65, 20, 60, 14);
-                    ctx.fillStyle = 'white'; ctx.font = "10px 'Segoe UI'"; ctx.fillText("Director", -62, 31);
-
-                    // Teams styled Callout Bubble
-                    ctx.fillStyle = '#ffffff';
-                    ctx.beginPath();
-                    ctx.moveTo(10, -50); ctx.lineTo(140, -50); ctx.lineTo(140, 10); ctx.lineTo(40, 10); ctx.lineTo(30, 20); ctx.lineTo(30, 10); ctx.lineTo(10, 10);
-                    ctx.fill();
-                    ctx.strokeStyle = '#e0e0e0'; ctx.stroke();
-
-                    drawBoxedText(ctx, m.chickenMessage, 18, -40, 110, 45, "600 12px 'Segoe UI', Arial", "#242424");
-                    
-                    ctx.restore();
                 }
             }
         },
@@ -337,7 +359,6 @@
 
             let spawnRate = Math.max(70, 100 - (daysEscaped * 1.5)); 
             if (frames % Math.floor(spawnRate) === 0) {
-                // PERFECT GAP CALCULATION with MUCH LARGER gap
                 let maxTopHeight = logicalHeight - this.minGap - 60; 
                 let topHeight = Math.random() * (maxTopHeight - 60) + 60; 
                 let bottomHeight = logicalHeight - this.minGap - topHeight;
@@ -351,6 +372,7 @@
                     chickenMessage: chickenMessages[Math.floor(Math.random() * chickenMessages.length)],
                     animScale: 0,
                     chickenFrame: 0,
+                    chickenCollided: false,
                     passed: false,
                     chickenEscaped: false
                 });
@@ -368,8 +390,11 @@
                 let m = this.array[i];
                 m.x -= currentScrollSpeed;
                 
+                // Meeting block collision
                 if (player.x + player.hitWidth > m.x && player.x < m.x + this.width) {
-                    if (player.y < m.top || player.y + player.hitHeight > logicalHeight - m.bottom) handleCollision();
+                    if (player.y < m.top || player.y + player.hitHeight > logicalHeight - m.bottom) {
+                        handleCollision();
+                    }
                 }
                 
                 if (m.x + this.width < player.x && !m.passed) {
@@ -449,6 +474,21 @@
             spawnParticles(player.x, player.y, '#0078d4', 30);
         } else {
             screenShake = 25; 
+            triggerGameOver();
+        }
+    }
+
+    // IMPROVED CHICKEN COLLISION LOGIC
+    function handleChickenCollision() {
+        if (invincibilityTimer > 0) return;
+
+        if (activePowerUps.shield) {
+            activePowerUps.shield = false;
+            invincibilityTimer = 60;
+            screenShake = 15;
+            spawnParticles(player.x, player.y, '#d83b01', 40);
+        } else {
+            screenShake = 30;
             triggerGameOver();
         }
     }
