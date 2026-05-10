@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Viewport locked for mobile portrait -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=portrait">
     <title>Out of Office: The Daily Sync</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #121212;
+            background-color: #000000; /* Letterbox background */
             color: #ffffff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -16,19 +17,30 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* Prevents mobile scrolling */
+            touch-action: none; /* Prevents mobile scrolling and double-tap zoom */
+        }
+        #gameWrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 450px; /* Constrain to standard mobile width on desktop */
+            max-height: 850px;
         }
         #gameCanvas {
-            background-color: #1e1e24; /* Teams Dark Mode Background */
-            border: 4px solid #333;
+            background-color: #1e1e24; /* Teams Dark Mode Background[span_0](start_span)[span_0](end_span) */
+            width: 100%;
+            height: 100%;
             box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            image-rendering: pixelated; /* Forces retro look */
+            image-rendering: pixelated; /* Forces retro look[span_1](start_span)[span_1](end_span) */
         }
     </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="gameWrapper">
+    <!-- Internal resolution fixed to portrait ratio -->
+    <canvas id="gameCanvas" width="400" height="700"></canvas>
+</div>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
@@ -37,9 +49,10 @@
     // --- GAME STATE ---
     let frames = 0;
     let daysEscaped = 0;
-    let chickenEscapes = 0; // For the polaroid count
+    let chickenEscapes = 0; // For the polaroid count[span_2](start_span)[span_2](end_span)
     let currentGameState = 'START'; // START, PLAYING, GAMEOVER
-    let isClicking = false;
+    let baseSpeed = 3;
+    let currentScrollSpeed = baseSpeed;
 
     // --- ARRAYS FOR RANDOM GENERATION ---
     const meetingTitles = [
@@ -63,27 +76,53 @@
 
     let currentGameOverText = "";
 
+    // --- POWER UP STATES ---
+    let activePowerUps = {
+        shield: false,
+        shrinkTimer: 0,
+        slowTimer: 0
+    };
+
     // --- ENTITIES ---
 
     // 1. The Player (Office Chair)
-    // AI Sprite Guide: 64x64 pixel art of employee in rolling chair.
     const player = {
-        x: 150,
-        y: 200,
-        width: 48,  // Hitbox slightly smaller than 64x64 sprite
-        height: 48,
+        x: 80,
+        y: 350,
+        baseWidth: 36,
+        baseHeight: 36,
+        width: 36,  
+        height: 36,
         velocity: 0,
-        gravity: 0.25,
-        lift: -6,
+        gravity: 0.3,
+        lift: -6.5,
         
         draw: function() {
-            // Placeholder: Replace with ctx.drawImage(playerSprite, this.x, this.y, 64, 64)
-            ctx.fillStyle = '#ffcc00'; // Yellow pixel chair placeholder
+            // Apply Shrink Power-up effect
+            if (activePowerUps.shrinkTimer > 0) {
+                this.width = this.baseWidth * 0.6;
+                this.height = this.baseHeight * 0.6;
+                activePowerUps.shrinkTimer--;
+            } else {
+                this.width = this.baseWidth;
+                this.height = this.baseHeight;
+            }
+
+            // Draw Shield Aura if active
+            if (activePowerUps.shield) {
+                ctx.fillStyle = 'rgba(0, 191, 255, 0.5)'; // Glowing blue aura
+                ctx.beginPath();
+                ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Placeholder for AI Sprite (Employee in Chair)[span_3](start_span)[span_3](end_span)
+            ctx.fillStyle = '#ffcc00'; 
             ctx.fillRect(this.x, this.y, this.width, this.height);
             
-            // Draw a little face to show direction
+            // Directional eye
             ctx.fillStyle = 'black';
-            ctx.fillRect(this.x + 30, this.y + 10, 5, 5); // Eye
+            ctx.fillRect(this.x + (this.width * 0.7), this.y + (this.height * 0.2), 4, 4); 
         },
         
         update: function() {
@@ -93,7 +132,7 @@
             // Floor collision
             if (this.y + this.height >= canvas.height) {
                 this.y = canvas.height - this.height;
-                triggerGameOver();
+                handleCollision();
             }
             // Ceiling collision
             if (this.y <= 0) {
@@ -107,13 +146,66 @@
         }
     };
 
-    // 2. The Meeting Blocks (Obstacles)
-    // AI Sprite Guide: 128px wide repeating solid purple/blue textures.
+    // 2. The Power-Ups (Collectibles)
+    const collectibles = {
+        array: [],
+        types: [
+            { id: 'SHIELD', color: '#00bfff', text: '☕', name: 'Expensed Coffee' },
+            { id: 'SLOW', color: '#32cd32', text: '📶', name: 'Wi-Fi Drop' },
+            { id: 'SHRINK', color: '#ff69b4', text: '🚫', name: 'Camera Off' }
+        ],
+        size: 24,
+
+        draw: function() {
+            for (let i = 0; i < this.array.length; i++) {
+                let p = this.array[i];
+                ctx.fillStyle = p.type.color;
+                ctx.beginPath();
+                ctx.arc(p.x + this.size/2, p.y + this.size/2, this.size/2, 0, Math.PI*2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = "14px Arial";
+                ctx.fillText(p.type.text, p.x + 4, p.y + 18);
+            }
+        },
+
+        update: function() {
+            for (let i = 0; i < this.array.length; i++) {
+                let p = this.array[i];
+                p.x -= currentScrollSpeed;
+
+                // Collision with player
+                if (player.x < p.x + this.size &&
+                    player.x + player.width > p.x &&
+                    player.y < p.y + this.size &&
+                    player.y + player.height > p.y) {
+                    
+                    // Apply Effect
+                    if (p.type.id === 'SHIELD') activePowerUps.shield = true;
+                    if (p.type.id === 'SLOW') activePowerUps.slowTimer = 300; // 5 seconds at 60fps
+                    if (p.type.id === 'SHRINK') activePowerUps.shrinkTimer = 300;
+                    
+                    // Remove collected
+                    this.array.splice(i, 1);
+                    i--;
+                    continue;
+                }
+
+                // Remove off-screen
+                if (p.x + this.size < 0) {
+                    this.array.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+    };
+
+    // 3. The Meeting Blocks (Pipes)
     const meetings = {
         array: [],
-        width: 100,
-        gap: 180, // Space between top and bottom blocks
-        dx: 3,    // Speed of scrolling
+        width: 70,
+        gap: 200, // Fixed safe gap for the player
         
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
@@ -126,46 +218,54 @@
                 // Draw Bottom Meeting Block
                 ctx.fillRect(m.x, canvas.height - m.bottom, this.width, m.bottom);
                 
-                // Draw Meeting Titles (Simulating calendar text)
-                ctx.fillStyle = 'white';
-                ctx.font = "12px Courier New";
+                // Draw Meeting Titles vertically to fit portrait mode
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.font = "10px Courier New";
                 
-                // Top block text
                 ctx.save();
-                ctx.translate(m.x + 20, m.top - 20);
+                ctx.translate(m.x + 35, m.top - 20);
+                ctx.rotate(-Math.PI / 2);
                 ctx.fillText(m.title, 0, 0);
                 ctx.restore();
 
-                // Bottom block text
                 ctx.save();
-                ctx.translate(m.x + 20, canvas.height - m.bottom + 30);
+                ctx.translate(m.x + 35, canvas.height - 20);
+                ctx.rotate(-Math.PI / 2);
                 ctx.fillText(m.title, 0, 0);
                 ctx.restore();
 
-                // Draw Chicken Boss if applicable (Mini Window inside block)
+                // Draw Chicken Boss safely INSIDE the bottom meeting block
+                // This ensures the gap is always 100% free[span_4](start_span)[span_4](end_span)
                 if (m.hasChicken) {
+                    let chickenY = canvas.height - m.bottom + 20; // Anchored inside the block
                     ctx.fillStyle = '#2b2b36'; // Dark window
-                    ctx.fillRect(m.x - 10, m.top + (this.gap/2) - 40, 120, 80);
-                    ctx.fillStyle = '#eb4034'; // Red chicken placeholder
-                    ctx.fillRect(m.x + 30, m.top + (this.gap/2) - 20, 40, 40);
+                    ctx.fillRect(m.x - 15, chickenY, 100, 70);
+                    ctx.fillStyle = '#eb4034'; // Red chicken
+                    ctx.fillRect(m.x + 15, chickenY + 15, 40, 40);
                     ctx.fillStyle = 'white';
-                    ctx.font = "10px Courier New";
-                    ctx.fillText("CIRCLING BACK!", m.x - 5, m.top + (this.gap/2) - 50);
+                    ctx.font = "9px Courier New";
+                    ctx.fillText("CIRCLE BACK!", m.x - 10, chickenY + 10);
                 }
             }
         },
         
         update: function() {
-            // Spawn new meetings every 150 frames
-            if (frames % 150 === 0) {
-                // Randomly calculate the top meeting height
-                // Max top height is canvas height minus gap minus min bottom height
-                let maxPos = canvas.height - this.gap - 50; 
-                let topHeight = Math.random() * (maxPos - 50) + 50; 
+            // Speed logic based on Wi-Fi Drop power-up
+            if (activePowerUps.slowTimer > 0) {
+                currentScrollSpeed = baseSpeed * 0.5;
+                activePowerUps.slowTimer--;
+            } else {
+                currentScrollSpeed = baseSpeed + (daysEscaped * 0.05); // Slowly gets harder
+            }
+
+            // Spawn new meetings
+            let spawnRate = Math.max(90, 120 - (daysEscaped * 2)); // Spawns faster as score increases
+            if (frames % Math.floor(spawnRate) === 0) {
+                let maxPos = canvas.height - this.gap - 40; 
+                let topHeight = Math.random() * (maxPos - 40) + 40; 
                 let bottomHeight = canvas.height - this.gap - topHeight;
                 
-                // 20% chance to spawn a Chicken Boss on this block
-                let spawnChicken = Math.random() < 0.2;
+                let spawnChicken = Math.random() < 0.25;
                 
                 this.array.push({
                     x: canvas.width,
@@ -176,43 +276,39 @@
                     passed: false,
                     chickenEscaped: false
                 });
+
+                // 20% chance to spawn a Power-Up in the gap of this pipe
+                if (Math.random() < 0.20) {
+                    collectibles.array.push({
+                        x: canvas.width + (this.width / 2) - (collectibles.size / 2),
+                        y: topHeight + (this.gap / 2) - (collectibles.size / 2),
+                        type: collectibles.types[Math.floor(Math.random() * collectibles.types.length)]
+                    });
+                }
             }
             
             for (let i = 0; i < this.array.length; i++) {
                 let m = this.array[i];
-                m.x -= this.dx;
+                m.x -= currentScrollSpeed;
                 
-                // Collision Detection (AABB)
+                // Collision Detection
                 if (player.x + player.width > m.x && player.x < m.x + this.width) {
-                    // Check top block
-                    if (player.y < m.top) {
-                        triggerGameOver();
-                    }
-                    // Check bottom block
-                    if (player.y + player.height > canvas.height - m.bottom) {
-                        triggerGameOver();
-                    }
-                    // Check Chicken Boss hit box
-                    if (m.hasChicken) {
-                        let chickenY = m.top + (this.gap/2) - 40;
-                        if (player.y + player.height > chickenY && player.y < chickenY + 80) {
-                             triggerGameOver();
-                        }
+                    // Check top and bottom block collision
+                    if (player.y < m.top || player.y + player.height > canvas.height - m.bottom) {
+                        handleCollision();
                     }
                 }
                 
-                // Score Update & Polaroid Collection
+                // Score Update
                 if (m.x + this.width < player.x && !m.passed) {
                     daysEscaped++;
                     m.passed = true;
-                    // If we passed a chicken, add a polaroid escape point
                     if (m.hasChicken && !m.chickenEscaped) {
                         chickenEscapes++;
                         m.chickenEscaped = true;
                     }
                 }
                 
-                // Remove off-screen blocks
                 if (m.x + this.width < 0) {
                     this.array.shift();
                     i--;
@@ -227,81 +323,115 @@
 
     // --- GAME LOOP & LOGIC ---
 
+    function handleCollision() {
+        if (activePowerUps.shield) {
+            // Shield absorbs the hit, break the shield and bounce slightly
+            activePowerUps.shield = false;
+            player.x += 10; // push slightly forward to clear the pipe
+            player.velocity = -2; // slight upward bounce
+        } else {
+            triggerGameOver();
+        }
+    }
+
     function triggerGameOver() {
         currentGameState = 'GAMEOVER';
         currentGameOverText = gameOvers[Math.floor(Math.random() * gameOvers.length)];
     }
 
     function resetGame() {
-        player.y = 200;
+        player.y = 350;
         player.velocity = 0;
         meetings.reset();
+        collectibles.array = [];
+        activePowerUps = { shield: false, shrinkTimer: 0, slowTimer: 0 };
         frames = 0;
         daysEscaped = 0;
         chickenEscapes = 0;
+        currentScrollSpeed = baseSpeed;
         currentGameState = 'PLAYING';
     }
 
     function drawUI() {
         if (currentGameState === 'START') {
-            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
             ctx.fillRect(0,0, canvas.width, canvas.height);
             ctx.fillStyle = 'white';
-            ctx.font = "30px Courier New";
-            ctx.fillText("OUT OF OFFICE: THE DAILY SYNC", 120, 250);
-            ctx.font = "20px Courier New";
-            ctx.fillText("Click or Tap to Float. Avoid Meetings.", 160, 300);
-            ctx.fillText("Click to Start", 310, 350);
+            ctx.textAlign = "center";
+            ctx.font = "bold 24px Courier New";
+            ctx.fillText("OUT OF OFFICE", canvas.width/2, 250);
+            ctx.font = "16px Courier New";
+            ctx.fillText("Tap to Float.", canvas.width/2, 300);
+            ctx.fillText("Avoid the Meetings.", canvas.width/2, 330);
+            
+            // Legend
+            ctx.font = "12px Courier New";
+            ctx.fillStyle = '#00bfff'; ctx.fillText("☕ Expensed Coffee (Shield)", canvas.width/2, 400);
+            ctx.fillStyle = '#32cd32'; ctx.fillText("📶 Wi-Fi Drop (Slowdown)", canvas.width/2, 430);
+            ctx.fillStyle = '#ff69b4'; ctx.fillText("🚫 Camera Off (Shrink)", canvas.width/2, 460);
+
+            ctx.fillStyle = 'white';
+            ctx.font = "bold 18px Courier New";
+            ctx.fillText("TAP TO START", canvas.width/2, 550);
+            ctx.textAlign = "left"; // reset
         }
         
         if (currentGameState === 'PLAYING') {
             ctx.fillStyle = 'white';
-            ctx.font = "24px Courier New";
-            ctx.fillText("Days Escaped: " + daysEscaped, 20, 40);
+            ctx.font = "bold 20px Courier New";
+            ctx.fillText("Days: " + daysEscaped, 15, 30);
+
+            // Draw active power-up HUD
+            if (activePowerUps.shield) ctx.fillText("☕", 15, 60);
+            if (activePowerUps.slowTimer > 0) ctx.fillText("📶", 45, 60);
+            if (activePowerUps.shrinkTimer > 0) ctx.fillText("🚫", 75, 60);
         }
         
         if (currentGameState === 'GAMEOVER') {
-            // "Teams Call" UI Overlay
+            // "Teams Call" UI Overlay[span_5](start_span)[span_5](end_span)
             ctx.fillStyle = '#1e1e24';
-            ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
+            ctx.fillRect(20, 100, canvas.width - 40, canvas.height - 200);
             ctx.strokeStyle = '#4b3b85';
-            ctx.lineWidth = 5;
-            ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
+            ctx.lineWidth = 4;
+            ctx.strokeRect(20, 100, canvas.width - 40, canvas.height - 200);
             
             ctx.fillStyle = '#eb4034';
-            ctx.font = "30px Courier New";
-            ctx.fillText("MEETING JOINED.", 280, 120);
+            ctx.font = "bold 24px Courier New";
+            ctx.textAlign = "center";
+            ctx.fillText("MEETING JOINED.", canvas.width/2, 140);
             
             ctx.fillStyle = 'white';
-            ctx.font = "18px Courier New";
-            
-            // Word wrap function for the game over text
-            wrapText(ctx, currentGameOverText, 80, 180, canvas.width - 160, 25);
+            ctx.font = "14px Courier New";
+            ctx.textAlign = "left";
+            wrapText(ctx, currentGameOverText, 40, 190, canvas.width - 80, 20);
             
             ctx.fillStyle = '#ffcc00';
-            ctx.font = "24px Courier New";
-            ctx.fillText("Total Days Escaped: " + daysEscaped, 250, 350);
+            ctx.font = "bold 20px Courier New";
+            ctx.textAlign = "center";
+            ctx.fillText("Days Escaped: " + daysEscaped, canvas.width/2, 300);
             
             ctx.fillStyle = '#7289da';
-            ctx.fillText("Polaroids Collected (Chickens Dodged): " + chickenEscapes, 120, 390);
+            ctx.font = "14px Courier New";
+            ctx.fillText("Polaroids (Chickens Dodged): " + chickenEscapes, canvas.width/2, 340); //[span_6](start_span)[span_6](end_span)
 
-            // Fake Share Buttons
-            ctx.fillStyle = '#25D366'; // WhatsApp Green
-            ctx.fillRect(200, 450, 180, 40);
-            ctx.fillStyle = '#E1306C'; // Instagram Pink
-            ctx.fillRect(420, 450, 180, 40);
+            // Fake Share Buttons mapped for mobile
+            ctx.fillStyle = '#25D366'; // WhatsApp
+            ctx.fillRect(50, 380, 140, 45);
+            ctx.fillStyle = '#E1306C'; // Instagram
+            ctx.fillRect(210, 380, 140, 45);
             
             ctx.fillStyle = 'white';
-            ctx.font = "16px Courier New";
-            ctx.fillText("Share to WA", 230, 475);
-            ctx.fillText("Share to IG", 450, 475);
+            ctx.font = "bold 14px Courier New";
+            ctx.fillText("WA Status", 120, 408);
+            ctx.fillText("IG Story", 280, 408);
             
             ctx.font = "14px Courier New";
-            ctx.fillText("Click anywhere to Rejoin the Calendar", 240, 530);
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillText("Tap anywhere to Rejoin", canvas.width/2, 470);
+            ctx.textAlign = "left"; // reset
         }
     }
 
-    // Helper function for wrapping text on canvas
     function wrapText(context, text, x, y, maxWidth, lineHeight) {
         let words = text.split(' ');
         let line = '';
@@ -321,14 +451,13 @@
     }
 
     function loop() {
-        // Clear Canvas
-        ctx.fillStyle = '#1e1e24'; // Background color
+        ctx.fillStyle = '#1e1e24'; 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Background Grid (simulating calendar rows)
+        // Background Grid
         ctx.strokeStyle = '#2b2b36';
         ctx.lineWidth = 1;
-        for(let i=0; i<canvas.height; i+=50) {
+        for(let i=0; i<canvas.height; i+=40) {
             ctx.beginPath();
             ctx.moveTo(0, i);
             ctx.lineTo(canvas.width, i);
@@ -337,38 +466,24 @@
 
         if (currentGameState === 'PLAYING') {
             player.update();
+            collectibles.update();
             meetings.update();
             frames++;
         }
         
-        // Draw logic is separate from update logic
         if (currentGameState === 'PLAYING' || currentGameState === 'GAMEOVER') {
             meetings.draw();
+            collectibles.draw();
             player.draw();
         }
         
         drawUI();
-        
         requestAnimationFrame(loop);
     }
 
     // --- INPUT HANDLING ---
-    
-    // Mouse / Touch
-    canvas.addEventListener('mousedown', handleInput);
-    canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault(); // Prevent screen zooming/scrolling
-        handleInput();
-    });
-
-    // Keyboard (Spacebar)
-    document.addEventListener('keydown', function(e) {
-        if(e.code === 'Space') {
-            handleInput();
-        }
-    });
-
-    function handleInput() {
+    const handleInput = (e) => {
+        if(e) e.preventDefault(); 
         if (currentGameState === 'START') {
             currentGameState = 'PLAYING';
         } else if (currentGameState === 'PLAYING') {
@@ -376,9 +491,15 @@
         } else if (currentGameState === 'GAMEOVER') {
             resetGame();
         }
-    }
+    };
 
-    // Start the game loop
+    canvas.addEventListener('mousedown', handleInput);
+    canvas.addEventListener('touchstart', handleInput, {passive: false});
+    document.addEventListener('keydown', function(e) {
+        if(e.code === 'Space') handleInput();
+    });
+
+    // Initialize
     loop();
 
 </script>
