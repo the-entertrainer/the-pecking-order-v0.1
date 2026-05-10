@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=portrait">
-    <title>Out of Office: The Daily Sync</title>
+    <title>The Pecking Order v0.1</title>
     <style>
         body {
             margin: 0;
@@ -338,9 +338,13 @@
                         
                         ctx.restore();
 
-                        // CHICKEN ENCOUNTER LOGIC: Check collision with player
-                        if (m.x < player.x + player.hitWidth && m.x + 80 > player.x &&
-                            chickenY - 30 < player.y + player.hitHeight && chickenY + 30 > player.y) {
+                        // CHICKEN ENCOUNTER LOGIC: Check collision with player - FIXED for accurate hitbox
+                        const chickenHitLeft = centerX - 30;
+                        const chickenHitRight = centerX + 30;
+                        const chickenHitTop = chickenY - 30;
+                        const chickenHitBottom = chickenY + 30;
+                        if (player.x < chickenHitRight && player.x + player.hitWidth > chickenHitLeft &&
+                            player.y < chickenHitBottom && player.y + player.hitHeight > chickenHitTop) {
                             
                             // Chicken collision detected
                             if (!m.chickenCollided) {
@@ -402,7 +406,7 @@
                     if (m.hasChicken && !m.chickenEscaped) { chickenEscapes++; m.chickenEscaped = true; }
                 }
                 
-                if (m.x + this.width + 100 < 0) { this.array.shift(); i--; }
+                if (m.x + this.width + 100 < 0) { this.array.splice(i, 1); i--; }
             }
         },
         reset: function() { this.array = []; }
