@@ -2,65 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>The Pecking Order v0.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>The Pecking Order v0.3</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { 
-            margin: 0; 
-            background: #1a1a1a; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            font-family: 'Courier New', Courier, monospace;
-            overflow: hidden;
-            touch-action: none;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+            /* Prevents the rubber-band refresh effect on iOS */
+            overscroll-behavior: none;
+            touch-action: none; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        canvas { 
-            box-shadow: 0 0 30px rgba(0,0,0,0.8); 
-            border: 4px solid #333; 
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        #ui-layer { 
-            position: absolute; 
-            top: 20px; 
-            width: 100%; 
-            pointer-events: none; 
-            text-align: center; 
-            z-index: 10;
-        }
-        h1 {
-            color: #00ff00;
-            text-shadow: 2px 2px 0px #000;
-            margin: 0;
-            font-size: 24px;
-            letter-spacing: 2px;
-        }
-        p {
-            color: #fff;
-            font-size: 14px;
-            margin-top: 5px;
+        canvas {
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
         }
     </style>
 </head>
 <body>
-    <div id="ui-layer">
-        <h1 id="score-text">MINUTES SAVED: 0</h1>
-        <p>Tap / Click to Pivot Gravity</p>
-    </div>
+    <div id="game-container"></div>
 
     <script>
-        // --- ASSET DATA URIs (Zero-Cost Hosting) ---
-        const svgWorker = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjgiIGhlaWdodD0iNiIgZmlsbD0iI2ZmY2M5OSIvPjxyZWN0IHg9IjMiIHk9IjgiIHdpZHRoPSIxMCIgaGVpZ2h0PSI4IiBmaWxsPSIjMWEzNjViIi8+PHJlY3QgeD0iNyIgeT0iOCIgd2lkdGg9IjIiIGhlaWdodD0iNCIgZmlsbD0iI2ZmZDAwMCIvPjwvc3ZnPg==';
-        const svgDesk = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAxNiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjE2IiBmaWxsPSIjOGM5Mjk4Ii8+PHJlY3QgeD0iMCIgeT0iNyIgd2lkdGg9IjMyIiBoZWlnaHQ9IjIiIGZpbGw9IiM1NTVjNjIiLz48Y2lyY2xlIGN4PSIyNCIgY3k9IjQiIHI9IjIiIGZpbGw9IiM2MDRhMzYiIG9wYWNpdHk9IjAuNSIvPjwvc3ZnPg==';
-        const svgStapler = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTIgMThMMjIgMThMMjIgMTZMMiAxNloiIGZpbGw9IiM1NTVjNjIiLz48cGF0aCBkPSJNMjIgMTZMMiAxMEwyIDZMMjIgMTJaIiBmaWxsPSIjYmJiIi8+PC9zdmc+';
-        const svgRooster = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMjQiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjI0IiByPSI2IiBmaWxsPSIjMGYwIi8+PGNpcmNsZSBjeD0iMjAiIGN5PSIyNCIgcj0iMiIgZmlsbD0iIzAwMCIvPjxwYXRoIGQ9Ik0zMiA4TDI0IDBMNDAgMFoiIGZpbGw9IiNmMDAiLz48cGF0aCBkPSJNOCAzMkwxNiAzN0w4IDQyWiIgZmlsbD0iIzk5OSIvPjwvc3ZnPg==';
+        // --- ASSET DATA URIs (Patched for iOS/Safari WebKit Bug) ---
+        // Explicit width and height attributes added to the base SVG strings to prevent 0x0 rendering.
+        const svgWorker = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI0IiB5PSIyIiB3aWR0aD0iOCIgaGVpZ2h0PSI2IiBmaWxsPSIjZmZjYzk5Ii8+PHJlY3QgeD0iMyIgeT0iOCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjgiIGZpbGw9IiMxYTM2NWIiLz48cmVjdCB4PSI3IiB5PSI4IiB3aWR0aD0iMiIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZkMDAwIi8+PC9zdmc+';
+        const svgDesk = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAzMiAxNiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMTYiIGZpbGw9IiM4YzkyOTgiLz48cmVjdCB4PSIwIiB5PSI3IiB3aWR0aD0iMzIiIGhlaWdodD0iMiIgZmlsbD0iIzU1NWM2MiIvPjxjaXJjbGUgY3g9IjI0IiBjeT0iNCIgcj0iMiIgZmlsbD0iIzYwNGEzNiIgb3BhY2l0eT0iMC41Ii8+PC9zdmc+';
+        const svgStapler = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjIgMThMMjIgMThMMjIgMTZMMiAxNloiIGZpbGw9IiM1NTVjNjIiLz48cGF0aCBkPSJNMjIgMTZMMiAxMEwyIDZMMjIgMTJaIiBmaWxsPSIjYmJiIi8+PC9zdmc+';
+        const svgRooster = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyNCIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMjQiIHI9IjYiIGZpbGw9IiMwZjAiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjI0IiByPSIyIiBmaWxsPSIjMDAwIi8+PHBhdGggZD0iTTMyIDhMMjQgMEw0MCAwWiIgZmlsbD0iI2YwMCIvPjxwYXRoIGQ9Ik04IDMyTDE2IDM3TDggNDJaIiBmaWxsPSIjOTk5Ii8+PC9zdmc+';
 
         const config = {
             type: Phaser.AUTO,
-            width: 800,
-            height: 450,
-            backgroundColor: '#2a2a35',
+            parent: 'game-container',
+            width: 720,  // AAA Mobile standard Portrait width
+            height: 1280, // AAA Mobile standard Portrait height
+            backgroundColor: '#1e1e24',
+            pixelArt: true, // Forces crisp, unblurred rendering of 8-bit sprites
             scale: {
                 mode: Phaser.Scale.FIT,
                 autoCenter: Phaser.Scale.CENTER_BOTH
@@ -68,7 +55,7 @@
             physics: {
                 default: 'arcade',
                 arcade: {
-                    gravity: { y: 1800 },
+                    gravity: { y: 3500 }, // Heavy gravity for snappy mobile gameplay
                     debug: false
                 }
             },
@@ -81,17 +68,17 @@
 
         const game = new Phaser.Game(config);
 
-        // Game Variables
-        let player;
-        let desk;
-        let obstacles;
-        let rooster;
+        let player, desk, obstacles, rooster;
         let isFlipped = false;
-        let gameSpeed = 300;
+        let gameSpeed = 450; 
         let score = 0;
-        let scoreTextElement;
         let isGameOver = false;
         let spawnTimer;
+
+        let uiLayer;
+        let scoreText;
+        let gameOverPanel;
+        let finalScoreText;
 
         function preload() {
             this.load.image('worker', svgWorker);
@@ -101,53 +88,68 @@
         }
 
         function create() {
-            // UI Element
-            scoreTextElement = document.getElementById('score-text');
+            const centerX = this.cameras.main.width / 2;
+            const centerY = this.cameras.main.height / 2;
 
-            // The Looming Executive Rooster (Background)
-            rooster = this.add.image(650, 225, 'rooster').setScale(4);
-            rooster.setAlpha(0.2); // Keeps him menacing but in the background
-            
-            // Subtle breathing animation for the Rooster
+            // Background Rooster
+            rooster = this.add.image(centerX, centerY - 300, 'rooster').setScale(8);
+            rooster.setAlpha(0.15);
             this.tweens.add({
                 targets: rooster,
-                scaleY: 4.2,
-                scaleX: 3.9,
-                duration: 2000,
+                scaleY: 8.5,
+                scaleX: 7.8,
+                duration: 2500,
                 yoyo: true,
                 repeat: -1,
                 ease: 'Sine.easeInOut'
             });
 
-            // The Endless Desk (TileSprite)
-            desk = this.add.tileSprite(400, 225, 800, 32, 'desk').setScale(2);
-            this.physics.add.existing(desk, true); // Static body
+            // The Desk
+            desk = this.add.tileSprite(centerX, centerY, 1440, 64, 'desk').setScale(1.5);
+            this.physics.add.existing(desk, true);
 
-            // The Player (Office Worker)
-            player = this.physics.add.sprite(150, 150, 'worker').setScale(3);
+            // The Player
+            player = this.physics.add.sprite(150, centerY - 150, 'worker').setScale(4.5);
+            player.body.setSize(10, 14); // Forgiving hitbox
             player.setCollideWorldBounds(true);
-            
-            // Collision between player and the desk
             this.physics.add.collider(player, desk);
 
-            // Obstacles Group
+            // Obstacles
             obstacles = this.physics.add.group();
             this.physics.add.overlap(player, obstacles, triggerGameOver, null, this);
 
-            // Input handling for the "Gravity Flip"
-            this.input.on('pointerdown', pivotGravity, this);
-            this.input.keyboard.on('keydown-SPACE', pivotGravity, this);
+            // In-Game UI
+            scoreText = this.add.text(centerX, 150, 'MINUTES SAVED: 0', { 
+                fontFamily: 'Courier New, Courier, monospace', fontSize: '48px', fill: '#00ff00', fontStyle: 'bold' 
+            }).setOrigin(0.5);
+
+            const instructionText = this.add.text(centerX, 220, 'TAP TO PIVOT', { 
+                fontFamily: 'Courier New, Courier, monospace', fontSize: '28px', fill: '#ffffff', alpha: 0.5 
+            }).setOrigin(0.5);
+
+            // Game Over Panel
+            gameOverPanel = this.add.container(centerX, centerY).setDepth(100).setVisible(false);
+            const bg = this.add.rectangle(0, 0, 650, 450, 0x000000, 0.95).setStrokeStyle(4, 0xff0000);
+            const title = this.add.text(0, -140, 'REDUNDANT!', { fontFamily: 'Courier New', fontSize: '64px', fill: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5);
+            finalScoreText = this.add.text(0, -20, '', { fontFamily: 'Courier New', fontSize: '32px', fill: '#ffffff', align: 'center' }).setOrigin(0.5);
+            const restartBtn = this.add.text(0, 120, '> TAP TO REAPPLY <', { fontFamily: 'Courier New', fontSize: '40px', fill: '#00ff00' }).setOrigin(0.5);
+            
+            this.tweens.add({ targets: restartBtn, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
+            gameOverPanel.add([bg, title, finalScoreText, restartBtn]);
+
+            // Input Handler
+            this.input.on('pointerdown', handleInput, this);
 
             // Spawner
             spawnTimer = this.time.addEvent({
-                delay: 1200,
+                delay: 1000,
                 callback: spawnObstacle,
                 callbackScope: this,
                 loop: true
             });
         }
 
-        function pivotGravity() {
+        function handleInput() {
             if (isGameOver) {
                 restartGame.call(this);
                 return;
@@ -156,25 +158,24 @@
             isFlipped = !isFlipped;
             player.setFlipY(isFlipped);
             
-            // Snap gravity and apply a small jolt to detach from the desk instantly
             if (isFlipped) {
-                this.physics.world.gravity.y = -1800;
-                player.setVelocityY(-200); 
+                this.physics.world.gravity.y = -3500;
+                player.setVelocityY(-400); 
             } else {
-                this.physics.world.gravity.y = 1800;
-                player.setVelocityY(200);
+                this.physics.world.gravity.y = 3500;
+                player.setVelocityY(400);
             }
         }
 
         function spawnObstacle() {
             if (isGameOver) return;
 
-            // Randomize Top or Bottom of the desk
             const isTop = Math.random() > 0.5;
-            // Calculate Y position based on desk placement
-            const yPos = isTop ? 175 : 275; 
+            const centerY = this.cameras.main.height / 2;
+            const yPos = isTop ? centerY - 85 : centerY + 85; 
 
-            const obstacle = obstacles.create(850, yPos, 'stapler').setScale(2);
+            const obstacle = obstacles.create(850, yPos, 'stapler').setScale(3);
+            obstacle.body.setSize(20, 16); 
             
             if (!isTop) {
                 obstacle.setFlipY(true);
@@ -184,49 +185,46 @@
             obstacle.setImmovable(true);
             obstacle.body.allowGravity = false;
 
-            // Increase difficulty over time
             gameSpeed += 5;
-            spawnTimer.delay = Math.max(600, spawnTimer.delay - 10);
+            spawnTimer.delay = Math.max(500, spawnTimer.delay - 10);
         }
 
         function update() {
             if (isGameOver) return;
 
-            // Scroll the desk to create the illusion of forward movement
-            desk.tilePositionX += (gameSpeed * 0.01);
-
-            // Score calculation
+            desk.tilePositionX += (gameSpeed * 0.015);
             score += 0.05;
-            scoreTextElement.innerText = `MINUTES SAVED: ${Math.floor(score)}`;
+            scoreText.setText(`MINUTES SAVED: ${Math.floor(score)}`);
 
-            // Cleanup off-screen obstacles to save memory
             obstacles.getChildren().forEach(obs => {
-                if (obs.x < -50) {
+                if (obs.x < -100) {
                     obs.destroy();
                 }
             });
         }
 
         function triggerGameOver() {
+            if (isGameOver) return; 
             isGameOver = true;
             this.physics.pause();
-            player.setTint(0xff0000);
             
-            // Sudden Rooster shake effect on death
-            this.cameras.main.shake(200, 0.02);
+            player.setTint(0xff0000);
+            this.cameras.main.shake(200, 0.015);
 
-            setTimeout(() => {
-                alert(`REDUNDANT!\n\nYou saved ${Math.floor(score)} minutes, but you hit a corporate hazard. Your position has been terminated and given to Jane Doe.\n\nTap OK to reapply.`);
-            }, 300);
+            finalScoreText.setText(`You saved ${Math.floor(score)} minutes.\n\nYour position has been\ngiven to Jane Doe.`);
+            gameOverPanel.setVisible(true);
+            
+            this.time.delayedCall(500, () => {
+                this.input.once('pointerdown', restartGame, this);
+            });
         }
 
         function restartGame() {
             isGameOver = false;
             score = 0;
-            gameSpeed = 300;
+            gameSpeed = 450;
             isFlipped = false;
-            this.physics.world.gravity.y = 1800;
-            spawnTimer.delay = 1200;
+            this.physics.world.gravity.y = 3500;
             this.scene.restart();
         }
     </script>
