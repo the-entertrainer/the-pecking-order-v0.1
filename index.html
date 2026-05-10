@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>The Pecking Order v0.3</title>
+    <title>The Pecking Order v0.4</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -11,7 +11,6 @@
             width: 100%;
             height: 100%;
             background-color: #111;
-            /* Prevents the rubber-band refresh effect on iOS */
             overscroll-behavior: none;
             touch-action: none; 
             display: flex;
@@ -34,20 +33,13 @@
     <div id="game-container"></div>
 
     <script>
-        // --- ASSET DATA URIs (Patched for iOS/Safari WebKit Bug) ---
-        // Explicit width and height attributes added to the base SVG strings to prevent 0x0 rendering.
-        const svgWorker = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI0IiB5PSIyIiB3aWR0aD0iOCIgaGVpZ2h0PSI2IiBmaWxsPSIjZmZjYzk5Ii8+PHJlY3QgeD0iMyIgeT0iOCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjgiIGZpbGw9IiMxYTM2NWIiLz48cmVjdCB4PSI3IiB5PSI4IiB3aWR0aD0iMiIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZkMDAwIi8+PC9zdmc+';
-        const svgDesk = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAzMiAxNiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMTYiIGZpbGw9IiM4YzkyOTgiLz48cmVjdCB4PSIwIiB5PSI3IiB3aWR0aD0iMzIiIGhlaWdodD0iMiIgZmlsbD0iIzU1NWM2MiIvPjxjaXJjbGUgY3g9IjI0IiBjeT0iNCIgcj0iMiIgZmlsbD0iIzYwNGEzNiIgb3BhY2l0eT0iMC41Ii8+PC9zdmc+';
-        const svgStapler = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjIgMThMMjIgMThMMjIgMTZMMiAxNloiIGZpbGw9IiM1NTVjNjIiLz48cGF0aCBkPSJNMjIgMTZMMiAxMEwyIDZMMjIgMTJaIiBmaWxsPSIjYmJiIi8+PC9zdmc+';
-        const svgRooster = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIyNCIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMjQiIHI9IjYiIGZpbGw9IiMwZjAiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjI0IiByPSIyIiBmaWxsPSIjMDAwIi8+PHBhdGggZD0iTTMyIDhMMjQgMEw0MCAwWiIgZmlsbD0iI2YwMCIvPjxwYXRoIGQ9Ik04IDMyTDE2IDM3TDggNDJaIiBmaWxsPSIjOTk5Ii8+PC9zdmc+';
-
         const config = {
             type: Phaser.AUTO,
             parent: 'game-container',
-            width: 720,  // AAA Mobile standard Portrait width
-            height: 1280, // AAA Mobile standard Portrait height
+            width: 720,  
+            height: 1280, 
             backgroundColor: '#1e1e24',
-            pixelArt: true, // Forces crisp, unblurred rendering of 8-bit sprites
+            pixelArt: true, 
             scale: {
                 mode: Phaser.Scale.FIT,
                 autoCenter: Phaser.Scale.CENTER_BOTH
@@ -55,12 +47,11 @@
             physics: {
                 default: 'arcade',
                 arcade: {
-                    gravity: { y: 3500 }, // Heavy gravity for snappy mobile gameplay
+                    gravity: { y: 3500 }, 
                     debug: false
                 }
             },
             scene: {
-                preload: preload,
                 create: create,
                 update: update
             }
@@ -75,19 +66,58 @@
         let isGameOver = false;
         let spawnTimer;
 
-        let uiLayer;
-        let scoreText;
-        let gameOverPanel;
-        let finalScoreText;
-
-        function preload() {
-            this.load.image('worker', svgWorker);
-            this.load.image('desk', svgDesk);
-            this.load.image('stapler', svgStapler);
-            this.load.image('rooster', svgRooster);
-        }
+        let uiLayer, scoreText, gameOverPanel, finalScoreText;
 
         function create() {
+            // ==========================================
+            // FOOLPROOF TEXTURE GENERATION
+            // Paints the assets directly into memory
+            // ==========================================
+            const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+            // 1. Draw Desk Tile (32x32)
+            g.fillStyle(0x8c9298, 1);
+            g.fillRect(0, 0, 32, 32);
+            g.fillStyle(0x555c62, 1);
+            g.fillRect(0, 14, 32, 4); // Edge detail
+            g.generateTexture('desk', 32, 32);
+            g.clear();
+
+            // 2. Draw Worker (16x16)
+            g.fillStyle(0xffcc99, 1); // Head
+            g.fillRect(4, 2, 8, 6);
+            g.fillStyle(0x1a365b, 1); // Suit
+            g.fillRect(3, 8, 10, 8);
+            g.fillStyle(0xffd000, 1); // Tie
+            g.fillRect(7, 8, 2, 4);
+            g.generateTexture('worker', 16, 16);
+            g.clear();
+
+            // 3. Draw Stapler (24x24)
+            g.fillStyle(0x555c62, 1); // Base
+            g.fillRect(2, 16, 20, 4);
+            g.fillStyle(0xbbbbbb, 1); // Top
+            g.fillTriangle(2, 16, 22, 6, 22, 16);
+            g.generateTexture('stapler', 24, 24);
+            g.clear();
+
+            // 4. Draw Executive Rooster (64x64)
+            g.fillStyle(0xffffff, 1); // Body
+            g.fillCircle(32, 32, 24);
+            g.fillStyle(0xff0000, 1); // Comb
+            g.fillTriangle(32, 8, 24, 0, 40, 0);
+            g.fillStyle(0x00ff00, 1); // Glowing Eye
+            g.fillCircle(20, 24, 6);
+            g.fillStyle(0x000000, 1); // Pupil
+            g.fillCircle(20, 24, 2);
+            g.fillStyle(0x999999, 1); // Beak
+            g.fillTriangle(8, 32, 16, 37, 8, 42);
+            g.generateTexture('rooster', 64, 64);
+            g.clear();
+
+            // ==========================================
+            // GAME SETUP
+            // ==========================================
             const centerX = this.cameras.main.width / 2;
             const centerY = this.cameras.main.height / 2;
 
@@ -95,13 +125,7 @@
             rooster = this.add.image(centerX, centerY - 300, 'rooster').setScale(8);
             rooster.setAlpha(0.15);
             this.tweens.add({
-                targets: rooster,
-                scaleY: 8.5,
-                scaleX: 7.8,
-                duration: 2500,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
+                targets: rooster, scaleY: 8.5, scaleX: 7.8, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
             });
 
             // The Desk
@@ -110,7 +134,7 @@
 
             // The Player
             player = this.physics.add.sprite(150, centerY - 150, 'worker').setScale(4.5);
-            player.body.setSize(10, 14); // Forgiving hitbox
+            player.body.setSize(10, 14); 
             player.setCollideWorldBounds(true);
             this.physics.add.collider(player, desk);
 
@@ -120,19 +144,19 @@
 
             // In-Game UI
             scoreText = this.add.text(centerX, 150, 'MINUTES SAVED: 0', { 
-                fontFamily: 'Courier New, Courier, monospace', fontSize: '48px', fill: '#00ff00', fontStyle: 'bold' 
+                fontFamily: 'monospace', fontSize: '48px', color: '#00ff00', fontStyle: 'bold' 
             }).setOrigin(0.5);
 
             const instructionText = this.add.text(centerX, 220, 'TAP TO PIVOT', { 
-                fontFamily: 'Courier New, Courier, monospace', fontSize: '28px', fill: '#ffffff', alpha: 0.5 
+                fontFamily: 'monospace', fontSize: '28px', color: '#ffffff', alpha: 0.5 
             }).setOrigin(0.5);
 
             // Game Over Panel
             gameOverPanel = this.add.container(centerX, centerY).setDepth(100).setVisible(false);
             const bg = this.add.rectangle(0, 0, 650, 450, 0x000000, 0.95).setStrokeStyle(4, 0xff0000);
-            const title = this.add.text(0, -140, 'REDUNDANT!', { fontFamily: 'Courier New', fontSize: '64px', fill: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5);
-            finalScoreText = this.add.text(0, -20, '', { fontFamily: 'Courier New', fontSize: '32px', fill: '#ffffff', align: 'center' }).setOrigin(0.5);
-            const restartBtn = this.add.text(0, 120, '> TAP TO REAPPLY <', { fontFamily: 'Courier New', fontSize: '40px', fill: '#00ff00' }).setOrigin(0.5);
+            const title = this.add.text(0, -140, 'REDUNDANT!', { fontFamily: 'monospace', fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5);
+            finalScoreText = this.add.text(0, -20, '', { fontFamily: 'monospace', fontSize: '32px', color: '#ffffff', align: 'center' }).setOrigin(0.5);
+            const restartBtn = this.add.text(0, 120, '> TAP TO REAPPLY <', { fontFamily: 'monospace', fontSize: '40px', color: '#00ff00' }).setOrigin(0.5);
             
             this.tweens.add({ targets: restartBtn, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
             gameOverPanel.add([bg, title, finalScoreText, restartBtn]);
@@ -141,19 +165,11 @@
             this.input.on('pointerdown', handleInput, this);
 
             // Spawner
-            spawnTimer = this.time.addEvent({
-                delay: 1000,
-                callback: spawnObstacle,
-                callbackScope: this,
-                loop: true
-            });
+            spawnTimer = this.time.addEvent({ delay: 1000, callback: spawnObstacle, callbackScope: this, loop: true });
         }
 
         function handleInput() {
-            if (isGameOver) {
-                restartGame.call(this);
-                return;
-            }
+            if (isGameOver) { restartGame.call(this); return; }
 
             isFlipped = !isFlipped;
             player.setFlipY(isFlipped);
@@ -177,9 +193,7 @@
             const obstacle = obstacles.create(850, yPos, 'stapler').setScale(3);
             obstacle.body.setSize(20, 16); 
             
-            if (!isTop) {
-                obstacle.setFlipY(true);
-            }
+            if (!isTop) obstacle.setFlipY(true);
 
             obstacle.setVelocityX(-gameSpeed);
             obstacle.setImmovable(true);
@@ -197,9 +211,7 @@
             scoreText.setText(`MINUTES SAVED: ${Math.floor(score)}`);
 
             obstacles.getChildren().forEach(obs => {
-                if (obs.x < -100) {
-                    obs.destroy();
-                }
+                if (obs.x < -100) obs.destroy();
             });
         }
 
@@ -214,9 +226,7 @@
             finalScoreText.setText(`You saved ${Math.floor(score)} minutes.\n\nYour position has been\ngiven to Jane Doe.`);
             gameOverPanel.setVisible(true);
             
-            this.time.delayedCall(500, () => {
-                this.input.once('pointerdown', restartGame, this);
-            });
+            this.time.delayedCall(500, () => { this.input.once('pointerdown', restartGame, this); });
         }
 
         function restartGame() {
