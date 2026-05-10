@@ -8,7 +8,7 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #e0e0e0; /* Gray backdrop for the phone */
+            background-color: #e0e0e0;
             color: #242424;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -28,7 +28,7 @@
             background-color: #ffffff;
         }
         #gameCanvas {
-            background-color: #ffffff; /* Teams Light Mode */
+            background-color: #ffffff;
             width: 100%;
             height: 100%;
             display: block;
@@ -52,6 +52,14 @@
     canvas.width = logicalWidth * DPR;
     canvas.height = logicalHeight * DPR;
     ctx.scale(DPR, DPR);
+
+    // ── SPRITE LOADING ──
+    const sprites = {
+        businessman: new Image(),
+        chicken: new Image()
+    };
+    sprites.businessman.src = 'flying_businessman.png';
+    sprites.chicken.src = 'chicken_boss.png';
 
     // --- GAME STATE ---
     let frames = 0;
@@ -118,19 +126,19 @@
 
     // --- POWER UP STATES ---
     let activePowerUps = { shield: false, shrinkTimer: 0, slowTimer: 0 };
-    let invincibilityTimer = 0; // For after shield breaks
+    let invincibilityTimer = 0;
 
     // --- ENTITIES ---
 
-    // 1. The Player (Office Chair)
+    // 1. The Player (Flying Businessman with sprite animation)
     const player = {
         x: 80, y: 350,
-        baseWidth: 42, baseHeight: 42,
-        hitWidth: 42, hitHeight: 42, // Actual collision box
+        baseWidth: 48, baseHeight: 48,
+        hitWidth: 48, hitHeight: 48,
         velocity: 0, gravity: 0.4, lift: -7.5, rotation: 0,
+        animFrame: 0,
         
         draw: function() {
-            // Blinking effect if invincible
             if (invincibilityTimer > 0 && Math.floor(frames / 5) % 2 === 0) return;
 
             ctx.save();
@@ -138,34 +146,35 @@
             this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.08)));
             ctx.rotate(this.rotation);
 
-            // Visual scaling
             let scaleFactor = (activePowerUps.shrinkTimer > 0) ? 0.6 : 1;
             ctx.scale(scaleFactor, scaleFactor);
 
             if (activePowerUps.shield) {
-                ctx.fillStyle = 'rgba(0, 120, 212, 0.2)'; // Teams Blue
+                ctx.fillStyle = 'rgba(0, 120, 212, 0.2)';
                 ctx.beginPath(); ctx.arc(0, 0, this.baseWidth + 5, 0, Math.PI * 2); ctx.fill();
                 ctx.strokeStyle = '#0078d4'; ctx.lineWidth = 2; ctx.stroke();
             }
 
-            // Player Sprite Construction
-            ctx.fillStyle = 'rgba(0,0,0,0.2)'; // Soft drop shadow
-            ctx.fillRect(-this.baseWidth/2 + 3, -this.baseHeight/2 + 3, this.baseWidth, this.baseHeight);
-            
-            ctx.fillStyle = '#424242'; // Dark gray chair back
-            ctx.fillRect(-this.baseWidth/2, -this.baseHeight/2, 15, this.baseHeight);
-            ctx.fillStyle = '#0078d4'; // Teams blue shirt
-            ctx.fillRect(-this.baseWidth/2 + 15, -this.baseHeight/4, 20, 25);
-            ctx.fillStyle = '#ffb69b'; // Head
-            ctx.fillRect(-this.baseWidth/2 + 10, -this.baseHeight/2 - 5, 18, 18);
-            ctx.fillStyle = '#ffffff'; // Coffee Cup
-            ctx.fillRect(-this.baseWidth/2 + 35, -this.baseHeight/4 + 5, 8, 10);
+            // Draw sprite animation frame
+            if (sprites.businessman.complete) {
+                this.animFrame = Math.floor((frames / 8) % 4);
+                const frameWidth = sprites.businessman.width / 4;
+                const frameHeight = sprites.businessman.height;
+                ctx.drawImage(
+                    sprites.businessman,
+                    this.animFrame * frameWidth, 0, frameWidth, frameHeight,
+                    -this.baseWidth/2, -this.baseHeight/2, this.baseWidth, this.baseHeight
+                );
+            } else {
+                // Fallback to simple rectangle if sprite not loaded
+                ctx.fillStyle = '#0078d4';
+                ctx.fillRect(-this.baseWidth/2, -this.baseHeight/2, this.baseWidth, this.baseHeight);
+            }
             
             ctx.restore();
         },
         
         update: function() {
-            // Update actual collision hitboxes dynamically based on shrink powerup
             if (activePowerUps.shrinkTimer > 0) {
                 this.hitWidth = this.baseWidth * 0.6;
                 this.hitHeight = this.baseHeight * 0.6;
@@ -194,9 +203,9 @@
     const collectibles = {
         array: [],
         types: [
-            { id: 'SHIELD', color: '#0078d4', text: '☕' }, // Teams Blue
-            { id: 'SLOW', color: '#107c41', text: '📶' },   // Excel Green
-            { id: 'SHRINK', color: '#d83b01', text: '🚫' }  // Office Orange
+            { id: 'SHIELD', color: '#0078d4', text: '☕' },
+            { id: 'SLOW', color: '#107c41', text: '📶' },
+            { id: 'SHRINK', color: '#d83b01', text: '🚫' }
         ],
         size: 32,
 
@@ -205,13 +214,11 @@
                 let p = this.array[i];
                 let bob = Math.sin(frames * 0.1) * 6;
                 
-                // Drop shadow
                 ctx.fillStyle = 'rgba(0,0,0,0.15)';
                 if (ctx.roundRect) {
                     ctx.beginPath(); ctx.roundRect(p.x + 3, p.y + bob + 3, this.size, this.size, 8); ctx.fill();
                 }
 
-                // Powerup Box
                 ctx.fillStyle = p.type.color;
                 if (ctx.roundRect) {
                     ctx.beginPath(); ctx.roundRect(p.x, p.y + bob, this.size, this.size, 8); ctx.fill();
@@ -231,7 +238,6 @@
                 p.x -= currentScrollSpeed;
                 let actualY = p.y + Math.sin(frames * 0.1) * 6;
 
-                // Checking collision against the dynamically sized hit box
                 if (player.x < p.x + this.size && player.x + player.hitWidth > p.x &&
                     player.y < actualY + this.size && player.y + player.hitHeight > actualY) {
                     
@@ -248,34 +254,32 @@
         }
     };
 
-    // 3. Meeting Blocks (The Pipes) - WITH PERFECT GAP CALCULATION
+    // 3. Meeting Blocks with MUCH LARGER GAPS
     const meetings = {
         array: [],
-        width: 140, // Wide to match calendar slots
-        minGap: 120, // Minimum gap between blocks (player height ~42px + safety margin)
+        width: 140,
+        minGap: 200, // SIGNIFICANTLY INCREASED from 120 to 200 for easy passage
         
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
                 let m = this.array[i];
                 
-                // Draw Blocks using Teams styling (Rounded corners on the right)
-                ctx.fillStyle = 'rgba(0,0,0,0.1)'; // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
                 ctx.fillRect(m.x + 4, 0, this.width, m.top + 4);
                 ctx.fillRect(m.x + 4, logicalHeight - m.bottom + 4, this.width, m.bottom);
 
-                ctx.fillStyle = '#e6e6fa'; // Light purple background
+                ctx.fillStyle = '#e6e6fa';
                 ctx.fillRect(m.x, 0, this.width, m.top);
                 ctx.fillRect(m.x, logicalHeight - m.bottom, this.width, m.bottom);
                 
-                ctx.fillStyle = '#5c2d91'; // Dark purple left border (Iconic Teams calendar look)
+                ctx.fillStyle = '#5c2d91';
                 ctx.fillRect(m.x, 0, 6, m.top);
                 ctx.fillRect(m.x, logicalHeight - m.bottom, 6, m.bottom);
 
-                // --- TEXT INSIDE THE BLOCKS ---
                 drawBoxedText(ctx, m.title, m.x + 15, 15, this.width - 20, m.top - 20, "bold 13px 'Segoe UI', Arial", "#242424");
                 drawBoxedText(ctx, m.title, m.x + 15, logicalHeight - m.bottom + 15, this.width - 20, m.bottom - 20, "bold 13px 'Segoe UI', Arial", "#242424");
 
-                // --- CHICKEN BOSS WITH SPRING ANIMATION ---
+                // --- CHICKEN BOSS WITH SPRITE ANIMATION ---
                 if (m.hasChicken) {
                     if (m.x < logicalWidth - 20) { m.animScale += (1 - m.animScale) * 0.15; }
                     
@@ -287,17 +291,28 @@
                     ctx.translate(centerX, centerY);
                     ctx.scale(m.animScale, m.animScale); 
                     
-                    // Teams Video Call UI Window
-                    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(-70, -40, 110, 85); // Shadow
-                    ctx.fillStyle = '#ffffff'; ctx.fillRect(-70, -40, 110, 80); // White frame
-                    ctx.fillStyle = '#242424'; ctx.fillRect(-68, -38, 106, 76); // Dark video bg
-                    
-                    // Chicken Sprite
-                    ctx.fillStyle = '#ffffff'; ctx.fillRect(-30, -10, 30, 40); // Body
-                    ctx.fillStyle = '#ffb900'; ctx.fillRect(-10, -5, 15, 10); // Beak
-                    ctx.fillStyle = 'white'; ctx.fillRect(-20, -6, 8, 8); // Eye white
-                    ctx.fillStyle = 'black'; ctx.fillRect(-16, -4, 4, 4); // Pupil
-                    
+                    // Draw chicken sprite with animation
+                    if (sprites.chicken.complete) {
+                        m.chickenFrame = Math.floor((frames / 10) % 4);
+                        const frameWidth = sprites.chicken.width / 4;
+                        const frameHeight = sprites.chicken.height;
+                        ctx.drawImage(
+                            sprites.chicken,
+                            m.chickenFrame * frameWidth, 0, frameWidth, frameHeight,
+                            -frameWidth/2, -frameHeight/2, frameWidth, frameHeight
+                        );
+                    } else {
+                        // Fallback: Teams Video Call UI Window
+                        ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(-70, -40, 110, 85);
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(-70, -40, 110, 80);
+                        ctx.fillStyle = '#242424'; ctx.fillRect(-68, -38, 106, 76);
+                        
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(-30, -10, 30, 40);
+                        ctx.fillStyle = '#ffb900'; ctx.fillRect(-10, -5, 15, 10);
+                        ctx.fillStyle = 'white'; ctx.fillRect(-20, -6, 8, 8);
+                        ctx.fillStyle = 'black'; ctx.fillRect(-16, -4, 4, 4);
+                    }
+
                     // Floating Name Tag
                     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-65, 20, 60, 14);
                     ctx.fillStyle = 'white'; ctx.font = "10px 'Segoe UI'"; ctx.fillText("Director", -62, 31);
@@ -309,7 +324,6 @@
                     ctx.fill();
                     ctx.strokeStyle = '#e0e0e0'; ctx.stroke();
 
-                    // Wrapped text
                     drawBoxedText(ctx, m.chickenMessage, 18, -40, 110, 45, "600 12px 'Segoe UI', Arial", "#242424");
                     
                     ctx.restore();
@@ -323,7 +337,7 @@
 
             let spawnRate = Math.max(70, 100 - (daysEscaped * 1.5)); 
             if (frames % Math.floor(spawnRate) === 0) {
-                // PERFECT GAP CALCULATION: Ensure gaps are always passable
+                // PERFECT GAP CALCULATION with MUCH LARGER gap
                 let maxTopHeight = logicalHeight - this.minGap - 60; 
                 let topHeight = Math.random() * (maxTopHeight - 60) + 60; 
                 let bottomHeight = logicalHeight - this.minGap - topHeight;
@@ -335,7 +349,8 @@
                     title: generateMeetingTitle(),
                     hasChicken: Math.random() < 0.35,
                     chickenMessage: chickenMessages[Math.floor(Math.random() * chickenMessages.length)],
-                    animScale: 0, 
+                    animScale: 0,
+                    chickenFrame: 0,
                     passed: false,
                     chickenEscaped: false
                 });
@@ -353,7 +368,6 @@
                 let m = this.array[i];
                 m.x -= currentScrollSpeed;
                 
-                // Collision uses the dynamically updated hitWidth and hitHeight
                 if (player.x + player.hitWidth > m.x && player.x < m.x + this.width) {
                     if (player.y < m.top || player.y + player.hitHeight > logicalHeight - m.bottom) handleCollision();
                 }
@@ -392,7 +406,7 @@
             } else { line = testLine; }
         }
         if (currentY + lineHeight <= y + maxHeight) { ctx.fillText(line, x, currentY); }
-        ctx.textBaseline = 'alphabetic'; // reset
+        ctx.textBaseline = 'alphabetic';
     }
 
     // --- GAME LOOP & LOGIC ---
@@ -400,41 +414,37 @@
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, logicalWidth, logicalHeight);
         
-        // Horizontal calendar lines
         ctx.strokeStyle = '#edebe9'; 
         ctx.lineWidth = 1;
         for(let i = 0; i < logicalHeight; i+=60) {
             ctx.beginPath(); ctx.moveTo(50, i); ctx.lineTo(logicalWidth, i); ctx.stroke();
         }
 
-        // Vertical day separators
         let fgOffset = (frames * currentScrollSpeed) % 200;
         for(let i = -200; i < logicalWidth; i+=200) {
             ctx.beginPath(); ctx.moveTo(i - fgOffset, 0); ctx.lineTo(i - fgOffset, logicalHeight); ctx.stroke();
         }
 
-        // Time labels on the left (Static)
         ctx.fillStyle = '#605e5c';
         ctx.font = "12px 'Segoe UI'";
         for(let i = 0, hour = 8; i < logicalHeight; i+=60, hour++) {
             ctx.fillText(`${hour}:00 AM`, 5, i + 5);
         }
 
-        // The Red "Current Time" Line
         ctx.strokeStyle = '#d13438';
         ctx.lineWidth = 2;
-        let lineY = 400 + Math.sin(frames * 0.02) * 20; // slowly drifting up and down
+        let lineY = 400 + Math.sin(frames * 0.02) * 20;
         ctx.beginPath(); ctx.moveTo(50, lineY); ctx.lineTo(logicalWidth, lineY); ctx.stroke();
         ctx.fillStyle = '#d13438';
         ctx.beginPath(); ctx.arc(50, lineY, 4, 0, Math.PI*2); ctx.fill();
     }
 
     function handleCollision() {
-        if (invincibilityTimer > 0) return; // Prevent double hits
+        if (invincibilityTimer > 0) return;
 
         if (activePowerUps.shield) {
             activePowerUps.shield = false;
-            invincibilityTimer = 60; // 1 second of invincibility to pass the pipe
+            invincibilityTimer = 60;
             screenShake = 12; 
             spawnParticles(player.x, player.y, '#0078d4', 30);
         } else {
@@ -469,7 +479,6 @@
             ctx.fillStyle = '#242424';
             ctx.font = "18px 'Segoe UI'"; ctx.fillText("Tap to Float. Avoid Meetings.", logicalWidth/2, 300);
             
-            // Retro Powerup Legend
             ctx.fillStyle = '#f3f2f1';
             if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(logicalWidth/2 - 130, 360, 260, 120, 8); ctx.fill(); }
             ctx.strokeStyle = '#e0e0e0'; ctx.stroke();
@@ -493,7 +502,6 @@
             if (activePowerUps.slowTimer > 0) { ctx.fillStyle = '#107c41'; ctx.fillText("📶", 95, 80); }
             if (activePowerUps.shrinkTimer > 0) { ctx.fillStyle = '#d83b01'; ctx.fillText("🚫", 130, 80); }
 
-            // Visual feedback for Bad Connection (Slow)
             if (activePowerUps.slowTimer > 0) {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.fillRect(0,0, logicalWidth, logicalHeight);
@@ -509,12 +517,10 @@
             
             ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0, logicalWidth, logicalHeight);
             
-            // Teams Dialog Window
             ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(15, 125, logicalWidth - 30, logicalHeight - 250);
             ctx.fillStyle = '#ffffff';
             if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(20, 120, logicalWidth - 40, logicalHeight - 240, 8); ctx.fill(); }
             
-            // Window Header
             ctx.fillStyle = '#f3f2f1';
             if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(20, 120, logicalWidth - 40, 50, [8, 8, 0, 0]); ctx.fill(); }
             ctx.fillStyle = '#242424'; ctx.font = "600 16px 'Segoe UI'"; ctx.fillText("Meeting Ended", 40, 150);
@@ -525,13 +531,11 @@
             ctx.textAlign = "left";
             drawBoxedText(ctx, currentGameOverText, 40, 260, logicalWidth - 80, 100, "16px 'Segoe UI'", "#242424");
             
-            // Stats styling like an attendance report
             ctx.fillStyle = '#f3f2f1'; ctx.fillRect(40, 360, logicalWidth - 80, 80);
             ctx.fillStyle = '#242424';
             ctx.font = "bold 18px 'Segoe UI'"; ctx.fillText("Focus Days Saved: " + daysEscaped, 60, 390);
             ctx.font = "16px 'Segoe UI'"; ctx.fillText("Polaroids (Chickens Dodged): " + chickenEscapes, 60, 420);
 
-            // Buttons Teams Style
             ctx.textAlign = "center";
             ctx.fillStyle = '#25D366'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(45, 470, 160, 45, 4); ctx.fill(); }
             ctx.fillStyle = '#E1306C'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(245, 470, 160, 45, 4); ctx.fill(); }
@@ -539,7 +543,6 @@
             ctx.fillStyle = 'white'; ctx.font = "600 15px 'Segoe UI'";
             ctx.fillText("Share to WA", 125, 498); ctx.fillText("Share to IG", 325, 498);
             
-            // "Leave" Rejoin button
             let alpha = Math.abs(Math.sin(frames * 0.05));
             ctx.fillStyle = `rgba(92, 45, 145, ${alpha})`; ctx.font = "bold 18px 'Segoe UI'";
             ctx.fillText("Tap anywhere to Rejoin", logicalWidth/2, 590);
