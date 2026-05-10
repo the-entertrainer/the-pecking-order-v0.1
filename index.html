@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Viewport locked for mobile portrait -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, orientation=portrait">
     <title>Out of Office: The Daily Sync</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #000000; /* Letterbox background */
+            background-color: #050505;
             color: #ffffff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -17,28 +16,27 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* Prevents mobile scrolling and double-tap zoom */
+            touch-action: none;
         }
         #gameWrapper {
             position: relative;
             width: 100vw;
             height: 100vh;
-            max-width: 450px; /* Constrain to standard mobile width on desktop */
+            max-width: 450px;
             max-height: 850px;
         }
         #gameCanvas {
-            background-color: #1e1e24; /* Teams Dark Mode Background[span_0](start_span)[span_0](end_span) */
+            background-color: #1e1e24;
             width: 100%;
             height: 100%;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            image-rendering: pixelated; /* Forces retro look[span_1](start_span)[span_1](end_span) */
+            box-shadow: 0 0 30px rgba(0,0,0,1);
+            image-rendering: pixelated;
         }
     </style>
 </head>
 <body>
 
 <div id="gameWrapper">
-    <!-- Internal resolution fixed to portrait ratio -->
     <canvas id="gameCanvas" width="400" height="700"></canvas>
 </div>
 
@@ -49,32 +47,101 @@
     // --- GAME STATE ---
     let frames = 0;
     let daysEscaped = 0;
-    let chickenEscapes = 0; // For the polaroid count[span_2](start_span)[span_2](end_span)
-    let currentGameState = 'START'; // START, PLAYING, GAMEOVER
-    let baseSpeed = 3;
+    let chickenEscapes = 0;
+    let currentGameState = 'START'; 
+    let baseSpeed = 3.5;
     let currentScrollSpeed = baseSpeed;
+    let screenShake = 0;
 
-    // --- ARRAYS FOR RANDOM GENERATION ---
-    const meetingTitles = [
-        "Quick Sync (90 Mins)",
-        "Synergy Alignment",
-        "Pre-read Discussion",
-        "Mandatory Fun Event",
-        "Brainstorming the Pre-Brainstorm",
-        "Quarterly Review",
-        "Urgent: Action Required",
-        "Post-Mortem Analysis"
+    // --- PROCEDURAL GENERATORS ---
+
+    // Yields 20 x 20 x 20 = 8,000 unique meeting titles
+    const titlePrefixes = ["Quick", "Mandatory", "Optional", "Urgent", "Daily", "Weekly", "Q3", "Q4", "Impromptu", "Strategic", "Tactical", "High-Level", "Deep Dive", "Touchbase", "Aligning", "Synergy", "Post-Mortem", "Pre-read", "Brainstorming", "Actionable"];
+    const titleMiddles = ["Alignment", "Synergy", "Bandwidth", "Deliverables", "Action Items", "Roadblocks", "KPI", "Metrics", "ROI", "Paradigm", "Wheelhouse", "Best Practices", "Deep Dive", "Touchpoint", "Ping", "Circle Back", "Ideation", "Capacity", "Stakeholder", "Agile"];
+    const titleSuffixes = ["Sync", "Review", "Discussion", "Meeting", "Catch-up", "Huddle", "Session", "Workshop", "Standup", "Kickoff", "Check-in", "Touchbase", "Debrief", "Round Table", "Townhall", "All-Hands", "1-on-1", "Retrospective", "Planning", "Grooming"];
+
+    const chickenMessages = [
+        "Let's double-click on that!",
+        "Are we aligned?",
+        "We need to boil the ocean!",
+        "Take this offline!",
+        "Per my last email...",
+        "Where are the Jane Doe reports?!",
+        "Let's put a pin in it.",
+        "Low hanging fruit!",
+        "Let's unpack this.",
+        "Shift the paradigm!",
+        "Let's run it up the flagpole.",
+        "What's the ROI?",
+        "Do we have the bandwidth?",
+        "Ping me later!",
+        "Let's circle back.",
+        "TulTul wants an update!",
+        "Are you on mute?",
+        "I need more synergy!",
+        "Think outside the box!",
+        "This is a blocker."
     ];
 
     const gameOvers = [
-        "Game Over. You asked a question at 4:59 PM. You missed dinner.",
-        "Game Over. You made eye contact with the Chicken. You now own the Excel tracker.",
-        "Game Over. You forgot to mute your mic while flushing. HR is calling.",
-        "Game Over. You agreed to take notes. You are now the Project Manager.",
-        "Game Over. You said 'Let's circle back'. Now you're stuck in a loop forever."
+        "Game Over. You asked a question at 4:59 PM. The meeting was extended by 45 minutes.",
+        "Game Over. You accidentally shared a tab with a job application open.",
+        "Game Over. You asked 'Can everyone see my screen?' 14 times. You died of embarrassment.",
+        "Game Over. TulTul noticed you were offline for 4 minutes. You are on a PIP.",
+        "Game Over. You volunteered to take notes. You are now the defacto project manager.",
+        "Game Over. You forgot to wear pants and stood up to get coffee.",
+        "Game Over. You replied 'Reply All' to a company-wide email.",
+        "Game Over. Jane Doe from HR would like a quick word.",
+        "Game Over. You said 'Let's circle back'. Now you're stuck in a loop forever.",
+        "Game Over. You joined the call from the bathroom. Someone heard the flush.",
+        "Game Over. You tried to fake a bad connection but forgot to stop moving your mouth.",
+        "Game Over. You were assigned to a 'Tiger Team'. It's just more work.",
+        "Game Over. You fell asleep and snored into the mic.",
+        "Game Over. Your cat walked across the keyboard and deleted the production database.",
+        "Game Over. You thought you were on mute and sighed heavily."
     ];
 
     let currentGameOverText = "";
+
+    function generateMeetingTitle() {
+        let p = titlePrefixes[Math.floor(Math.random() * titlePrefixes.length)];
+        let m = titleMiddles[Math.floor(Math.random() * titleMiddles.length)];
+        let s = titleSuffixes[Math.floor(Math.random() * titleSuffixes.length)];
+        return `${p} ${m} ${s}`;
+    }
+
+    // --- PARTICLES & UX ---
+    const particles = [];
+    
+    function spawnParticles(x, y, color) {
+        for(let i=0; i<15; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 1.0,
+                color: color
+            });
+        }
+    }
+
+    function updateAndDrawParticles() {
+        for(let i=0; i<particles.length; i++) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.05;
+            if(p.life > 0) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1.0;
+            } else {
+                particles.splice(i, 1);
+                i--;
+            }
+        }
+    }
 
     // --- POWER UP STATES ---
     let activePowerUps = {
@@ -94,47 +161,49 @@
         width: 36,  
         height: 36,
         velocity: 0,
-        gravity: 0.3,
-        lift: -6.5,
+        gravity: 0.35,
+        lift: -7,
+        rotation: 0,
         
         draw: function() {
-            // Apply Shrink Power-up effect
+            ctx.save();
+            ctx.translate(this.x + this.width/2, this.y + this.height/2);
+            
+            // Tilt the player based on velocity
+            this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
+            ctx.rotate(this.rotation);
+
             if (activePowerUps.shrinkTimer > 0) {
-                this.width = this.baseWidth * 0.6;
-                this.height = this.baseHeight * 0.6;
+                ctx.scale(0.6, 0.6);
                 activePowerUps.shrinkTimer--;
-            } else {
-                this.width = this.baseWidth;
-                this.height = this.baseHeight;
             }
 
-            // Draw Shield Aura if active
             if (activePowerUps.shield) {
-                ctx.fillStyle = 'rgba(0, 191, 255, 0.5)'; // Glowing blue aura
+                ctx.fillStyle = 'rgba(0, 191, 255, 0.4)';
                 ctx.beginPath();
-                ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width, 0, Math.PI * 2);
+                ctx.arc(0, 0, this.width, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Placeholder for AI Sprite (Employee in Chair)[span_3](start_span)[span_3](end_span)
+            // Draw Sprite Placeholder
             ctx.fillStyle = '#ffcc00'; 
-            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillRect(-this.baseWidth/2, -this.baseHeight/2, this.baseWidth, this.baseHeight);
             
-            // Directional eye
+            // Draw Eye
             ctx.fillStyle = 'black';
-            ctx.fillRect(this.x + (this.width * 0.7), this.y + (this.height * 0.2), 4, 4); 
+            ctx.fillRect(this.baseWidth/4, -this.baseHeight/4, 5, 5); 
+            
+            ctx.restore();
         },
         
         update: function() {
             this.velocity += this.gravity;
             this.y += this.velocity;
             
-            // Floor collision
             if (this.y + this.height >= canvas.height) {
                 this.y = canvas.height - this.height;
                 handleCollision();
             }
-            // Ceiling collision
             if (this.y <= 0) {
                 this.y = 0;
                 this.velocity = 0;
@@ -143,30 +212,34 @@
         
         fly: function() {
             this.velocity = this.lift;
+            // Little exhaust particle effect
+            spawnParticles(this.x, this.y + this.height, '#aaaaaa');
         }
     };
 
-    // 2. The Power-Ups (Collectibles)
+    // 2. The Power-Ups
     const collectibles = {
         array: [],
         types: [
-            { id: 'SHIELD', color: '#00bfff', text: '☕', name: 'Expensed Coffee' },
-            { id: 'SLOW', color: '#32cd32', text: '📶', name: 'Wi-Fi Drop' },
-            { id: 'SHRINK', color: '#ff69b4', text: '🚫', name: 'Camera Off' }
+            { id: 'SHIELD', color: '#00bfff', text: '☕' },
+            { id: 'SLOW', color: '#32cd32', text: '📶' },
+            { id: 'SHRINK', color: '#ff69b4', text: '🚫' }
         ],
-        size: 24,
+        size: 26,
 
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
                 let p = this.array[i];
+                let bobOffset = Math.sin(frames * 0.1) * 5; // Bobbing animation
+                
                 ctx.fillStyle = p.type.color;
                 ctx.beginPath();
-                ctx.arc(p.x + this.size/2, p.y + this.size/2, this.size/2, 0, Math.PI*2);
+                ctx.arc(p.x + this.size/2, p.y + this.size/2 + bobOffset, this.size/2, 0, Math.PI*2);
                 ctx.fill();
                 
                 ctx.fillStyle = 'white';
-                ctx.font = "14px Arial";
-                ctx.fillText(p.type.text, p.x + 4, p.y + 18);
+                ctx.font = "16px Arial";
+                ctx.fillText(p.type.text, p.x + 4, p.y + 19 + bobOffset);
             }
         },
 
@@ -175,24 +248,25 @@
                 let p = this.array[i];
                 p.x -= currentScrollSpeed;
 
-                // Collision with player
+                let bobOffset = Math.sin(frames * 0.1) * 5;
+                let actualY = p.y + bobOffset;
+
                 if (player.x < p.x + this.size &&
                     player.x + player.width > p.x &&
-                    player.y < p.y + this.size &&
-                    player.y + player.height > p.y) {
+                    player.y < actualY + this.size &&
+                    player.y + player.height > actualY) {
                     
-                    // Apply Effect
+                    spawnParticles(p.x, actualY, p.type.color);
+
                     if (p.type.id === 'SHIELD') activePowerUps.shield = true;
-                    if (p.type.id === 'SLOW') activePowerUps.slowTimer = 300; // 5 seconds at 60fps
+                    if (p.type.id === 'SLOW') activePowerUps.slowTimer = 300; 
                     if (p.type.id === 'SHRINK') activePowerUps.shrinkTimer = 300;
                     
-                    // Remove collected
                     this.array.splice(i, 1);
                     i--;
                     continue;
                 }
 
-                // Remove off-screen
                 if (p.x + this.size < 0) {
                     this.array.splice(i, 1);
                     i--;
@@ -201,84 +275,89 @@
         }
     };
 
-    // 3. The Meeting Blocks (Pipes)
+    // 3. The Meeting Blocks
     const meetings = {
         array: [],
-        width: 70,
-        gap: 200, // Fixed safe gap for the player
+        width: 80,
+        gap: 220, 
         
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
                 let m = this.array[i];
                 
-                // Draw Top Meeting Block
-                ctx.fillStyle = '#4b3b85'; // Teams Purple
-                ctx.fillRect(m.x, 0, this.width, m.top);
+                // Add a subtle 3D highlight to the left edge of blocks
+                ctx.fillStyle = '#5c4b99'; 
+                ctx.fillRect(m.x, 0, 5, m.top);
+                ctx.fillRect(m.x, canvas.height - m.bottom, 5, m.bottom);
+
+                ctx.fillStyle = '#4b3b85'; 
+                ctx.fillRect(m.x + 5, 0, this.width - 5, m.top);
+                ctx.fillRect(m.x + 5, canvas.height - m.bottom, this.width - 5, m.bottom);
                 
-                // Draw Bottom Meeting Block
-                ctx.fillRect(m.x, canvas.height - m.bottom, this.width, m.bottom);
-                
-                // Draw Meeting Titles vertically to fit portrait mode
-                ctx.fillStyle = 'rgba(255,255,255,0.6)';
-                ctx.font = "10px Courier New";
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.font = "bold 11px Courier New";
                 
                 ctx.save();
-                ctx.translate(m.x + 35, m.top - 20);
+                ctx.translate(m.x + 45, m.top - 20);
                 ctx.rotate(-Math.PI / 2);
                 ctx.fillText(m.title, 0, 0);
                 ctx.restore();
 
                 ctx.save();
-                ctx.translate(m.x + 35, canvas.height - 20);
+                ctx.translate(m.x + 45, canvas.height - 20);
                 ctx.rotate(-Math.PI / 2);
                 ctx.fillText(m.title, 0, 0);
                 ctx.restore();
 
-                // Draw Chicken Boss safely INSIDE the bottom meeting block
-                // This ensures the gap is always 100% free[span_4](start_span)[span_4](end_span)
                 if (m.hasChicken) {
-                    let chickenY = canvas.height - m.bottom + 20; // Anchored inside the block
-                    ctx.fillStyle = '#2b2b36'; // Dark window
-                    ctx.fillRect(m.x - 15, chickenY, 100, 70);
-                    ctx.fillStyle = '#eb4034'; // Red chicken
-                    ctx.fillRect(m.x + 15, chickenY + 15, 40, 40);
+                    let chickenY = canvas.height - m.bottom + 20; 
+                    ctx.fillStyle = '#2b2b36'; 
+                    ctx.fillRect(m.x - 20, chickenY, 120, 75);
+                    ctx.fillStyle = '#eb4034'; 
+                    ctx.fillRect(m.x + 20, chickenY + 20, 40, 40);
+                    
+                    // Speech Bubble
                     ctx.fillStyle = 'white';
-                    ctx.font = "9px Courier New";
-                    ctx.fillText("CIRCLE BACK!", m.x - 10, chickenY + 10);
+                    ctx.beginPath();
+                    ctx.moveTo(m.x - 25, chickenY + 10);
+                    ctx.lineTo(m.x + 90, chickenY + 10);
+                    ctx.lineTo(m.x + 90, chickenY - 15);
+                    ctx.lineTo(m.x - 25, chickenY - 15);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'black';
+                    ctx.font = "bold 9px Courier New";
+                    ctx.fillText(m.chickenMessage, m.x - 20, chickenY);
                 }
             }
         },
         
         update: function() {
-            // Speed logic based on Wi-Fi Drop power-up
             if (activePowerUps.slowTimer > 0) {
                 currentScrollSpeed = baseSpeed * 0.5;
                 activePowerUps.slowTimer--;
             } else {
-                currentScrollSpeed = baseSpeed + (daysEscaped * 0.05); // Slowly gets harder
+                currentScrollSpeed = baseSpeed + (daysEscaped * 0.05); 
             }
 
-            // Spawn new meetings
-            let spawnRate = Math.max(90, 120 - (daysEscaped * 2)); // Spawns faster as score increases
+            let spawnRate = Math.max(80, 110 - (daysEscaped * 2)); 
             if (frames % Math.floor(spawnRate) === 0) {
-                let maxPos = canvas.height - this.gap - 40; 
-                let topHeight = Math.random() * (maxPos - 40) + 40; 
+                let maxPos = canvas.height - this.gap - 50; 
+                let topHeight = Math.random() * (maxPos - 50) + 50; 
                 let bottomHeight = canvas.height - this.gap - topHeight;
-                
-                let spawnChicken = Math.random() < 0.25;
                 
                 this.array.push({
                     x: canvas.width,
                     top: topHeight,
                     bottom: bottomHeight,
-                    title: meetingTitles[Math.floor(Math.random() * meetingTitles.length)],
-                    hasChicken: spawnChicken,
+                    title: generateMeetingTitle(),
+                    hasChicken: Math.random() < 0.3,
+                    chickenMessage: chickenMessages[Math.floor(Math.random() * chickenMessages.length)],
                     passed: false,
                     chickenEscaped: false
                 });
 
-                // 20% chance to spawn a Power-Up in the gap of this pipe
-                if (Math.random() < 0.20) {
+                if (Math.random() < 0.25) {
                     collectibles.array.push({
                         x: canvas.width + (this.width / 2) - (collectibles.size / 2),
                         y: topHeight + (this.gap / 2) - (collectibles.size / 2),
@@ -291,15 +370,12 @@
                 let m = this.array[i];
                 m.x -= currentScrollSpeed;
                 
-                // Collision Detection
                 if (player.x + player.width > m.x && player.x < m.x + this.width) {
-                    // Check top and bottom block collision
                     if (player.y < m.top || player.y + player.height > canvas.height - m.bottom) {
                         handleCollision();
                     }
                 }
                 
-                // Score Update
                 if (m.x + this.width < player.x && !m.passed) {
                     daysEscaped++;
                     m.passed = true;
@@ -323,27 +399,66 @@
 
     // --- GAME LOOP & LOGIC ---
 
+    function drawBackgroundParallax() {
+        ctx.fillStyle = '#1e1e24'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Deep background layer (Parallax)
+        ctx.strokeStyle = '#25252e';
+        ctx.lineWidth = 1;
+        let bgOffset = (frames * (currentScrollSpeed * 0.2)) % 60;
+        for(let i = -60; i < canvas.width; i+=60) {
+            ctx.beginPath();
+            ctx.moveTo(i - bgOffset, 0);
+            ctx.lineTo(i - bgOffset, canvas.height);
+            ctx.stroke();
+        }
+
+        // Foreground Grid
+        ctx.strokeStyle = '#2b2b36';
+        ctx.lineWidth = 2;
+        let fgOffset = (frames * currentScrollSpeed) % 40;
+        for(let i = -40; i < canvas.width; i+=40) {
+            ctx.beginPath();
+            ctx.moveTo(i - fgOffset, 0);
+            ctx.lineTo(i - fgOffset, canvas.height);
+            ctx.stroke();
+        }
+        for(let j=0; j<canvas.height; j+=40) {
+            ctx.beginPath();
+            ctx.moveTo(0, j);
+            ctx.lineTo(canvas.width, j);
+            ctx.stroke();
+        }
+    }
+
     function handleCollision() {
         if (activePowerUps.shield) {
-            // Shield absorbs the hit, break the shield and bounce slightly
             activePowerUps.shield = false;
-            player.x += 10; // push slightly forward to clear the pipe
-            player.velocity = -2; // slight upward bounce
+            player.x += 15; 
+            player.velocity = -3; 
+            screenShake = 10; // Small shake
+            spawnParticles(player.x, player.y, '#00bfff');
         } else {
+            screenShake = 20; // Massive shake
             triggerGameOver();
         }
     }
 
     function triggerGameOver() {
-        currentGameState = 'GAMEOVER';
-        currentGameOverText = gameOvers[Math.floor(Math.random() * gameOvers.length)];
+        if(currentGameState !== 'GAMEOVER') {
+            currentGameState = 'GAMEOVER';
+            currentGameOverText = gameOvers[Math.floor(Math.random() * gameOvers.length)];
+        }
     }
 
     function resetGame() {
         player.y = 350;
+        player.x = 80;
         player.velocity = 0;
         meetings.reset();
         collectibles.array = [];
+        particles.length = 0;
         activePowerUps = { shield: false, shrinkTimer: 0, slowTimer: 0 };
         frames = 0;
         daysEscaped = 0;
@@ -352,83 +467,76 @@
         currentGameState = 'PLAYING';
     }
 
+    // Helper for Text Drop Shadows
+    function drawTextWithShadow(text, x, y, font, color) {
+        ctx.font = font;
+        ctx.fillStyle = 'black';
+        ctx.fillText(text, x + 2, y + 2); // Shadow
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y); // Text
+    }
+
     function drawUI() {
         if (currentGameState === 'START') {
             ctx.fillStyle = 'rgba(0,0,0,0.85)';
             ctx.fillRect(0,0, canvas.width, canvas.height);
-            ctx.fillStyle = 'white';
             ctx.textAlign = "center";
-            ctx.font = "bold 24px Courier New";
-            ctx.fillText("OUT OF OFFICE", canvas.width/2, 250);
-            ctx.font = "16px Courier New";
-            ctx.fillText("Tap to Float.", canvas.width/2, 300);
-            ctx.fillText("Avoid the Meetings.", canvas.width/2, 330);
+            drawTextWithShadow("OUT OF OFFICE", canvas.width/2, 250, "bold 32px Courier New", "#ffffff");
+            drawTextWithShadow("Tap to Float.", canvas.width/2, 300, "18px Courier New", "#aaaaaa");
+            drawTextWithShadow("Avoid the Meetings.", canvas.width/2, 330, "18px Courier New", "#aaaaaa");
             
-            // Legend
-            ctx.font = "12px Courier New";
-            ctx.fillStyle = '#00bfff'; ctx.fillText("☕ Expensed Coffee (Shield)", canvas.width/2, 400);
-            ctx.fillStyle = '#32cd32'; ctx.fillText("📶 Wi-Fi Drop (Slowdown)", canvas.width/2, 430);
-            ctx.fillStyle = '#ff69b4'; ctx.fillText("🚫 Camera Off (Shrink)", canvas.width/2, 460);
+            drawTextWithShadow("☕ Shield  📶 Slow  🚫 Shrink", canvas.width/2, 420, "14px Courier New", "#ffcc00");
 
-            ctx.fillStyle = 'white';
-            ctx.font = "bold 18px Courier New";
+            // Pulsing Start Text
+            let alpha = Math.abs(Math.sin(frames * 0.05));
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.font = "bold 20px Courier New";
             ctx.fillText("TAP TO START", canvas.width/2, 550);
-            ctx.textAlign = "left"; // reset
+            ctx.textAlign = "left"; 
         }
         
         if (currentGameState === 'PLAYING') {
-            ctx.fillStyle = 'white';
-            ctx.font = "bold 20px Courier New";
-            ctx.fillText("Days: " + daysEscaped, 15, 30);
-
-            // Draw active power-up HUD
-            if (activePowerUps.shield) ctx.fillText("☕", 15, 60);
-            if (activePowerUps.slowTimer > 0) ctx.fillText("📶", 45, 60);
-            if (activePowerUps.shrinkTimer > 0) ctx.fillText("🚫", 75, 60);
+            drawTextWithShadow("Days: " + daysEscaped, 15, 30, "bold 22px Courier New", "#ffffff");
+            if (activePowerUps.shield) drawTextWithShadow("☕", 15, 60, "20px Arial", "white");
+            if (activePowerUps.slowTimer > 0) drawTextWithShadow("📶", 45, 60, "20px Arial", "white");
+            if (activePowerUps.shrinkTimer > 0) drawTextWithShadow("🚫", 75, 60, "20px Arial", "white");
         }
         
         if (currentGameState === 'GAMEOVER') {
-            // "Teams Call" UI Overlay[span_5](start_span)[span_5](end_span)
+            if(screenShake > 0) return; // Wait for shake to finish before showing UI
+            
             ctx.fillStyle = '#1e1e24';
             ctx.fillRect(20, 100, canvas.width - 40, canvas.height - 200);
             ctx.strokeStyle = '#4b3b85';
             ctx.lineWidth = 4;
             ctx.strokeRect(20, 100, canvas.width - 40, canvas.height - 200);
             
-            ctx.fillStyle = '#eb4034';
-            ctx.font = "bold 24px Courier New";
             ctx.textAlign = "center";
-            ctx.fillText("MEETING JOINED.", canvas.width/2, 140);
+            drawTextWithShadow("MEETING JOINED.", canvas.width/2, 150, "bold 26px Courier New", "#eb4034");
             
             ctx.fillStyle = 'white';
-            ctx.font = "14px Courier New";
+            ctx.font = "16px Courier New";
             ctx.textAlign = "left";
-            wrapText(ctx, currentGameOverText, 40, 190, canvas.width - 80, 20);
+            wrapText(ctx, currentGameOverText, 40, 200, canvas.width - 80, 24);
             
-            ctx.fillStyle = '#ffcc00';
-            ctx.font = "bold 20px Courier New";
             ctx.textAlign = "center";
-            ctx.fillText("Days Escaped: " + daysEscaped, canvas.width/2, 300);
-            
-            ctx.fillStyle = '#7289da';
-            ctx.font = "14px Courier New";
-            ctx.fillText("Polaroids (Chickens Dodged): " + chickenEscapes, canvas.width/2, 340); //[span_6](start_span)[span_6](end_span)
+            drawTextWithShadow("Days Escaped: " + daysEscaped, canvas.width/2, 320, "bold 22px Courier New", "#ffcc00");
+            drawTextWithShadow("Polaroids Pinned: " + chickenEscapes, canvas.width/2, 360, "16px Courier New", "#7289da");
 
-            // Fake Share Buttons mapped for mobile
-            ctx.fillStyle = '#25D366'; // WhatsApp
-            ctx.fillRect(50, 380, 140, 45);
-            ctx.fillStyle = '#E1306C'; // Instagram
-            ctx.fillRect(210, 380, 140, 45);
+            // Buttons
+            ctx.fillStyle = '#25D366'; ctx.fillRect(40, 420, 150, 50); // WA
+            ctx.fillStyle = '#E1306C'; ctx.fillRect(210, 420, 150, 50); // IG
             
             ctx.fillStyle = 'white';
-            ctx.font = "bold 14px Courier New";
-            ctx.fillText("WA Status", 120, 408);
-            ctx.fillText("IG Story", 280, 408);
+            ctx.font = "bold 15px Courier New";
+            ctx.fillText("WA Status", 115, 450);
+            ctx.fillText("IG Story", 285, 450);
             
+            let alpha = Math.abs(Math.sin(frames * 0.05));
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
             ctx.font = "14px Courier New";
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.fillText("Tap anywhere to Rejoin", canvas.width/2, 470);
-            ctx.textAlign = "left"; // reset
+            ctx.fillText("Tap anywhere to Rejoin", canvas.width/2, 530);
+            ctx.textAlign = "left"; 
         }
     }
 
@@ -451,33 +559,35 @@
     }
 
     function loop() {
-        ctx.fillStyle = '#1e1e24'; 
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
         
-        // Background Grid
-        ctx.strokeStyle = '#2b2b36';
-        ctx.lineWidth = 1;
-        for(let i=0; i<canvas.height; i+=40) {
-            ctx.beginPath();
-            ctx.moveTo(0, i);
-            ctx.lineTo(canvas.width, i);
-            ctx.stroke();
+        // Screen Shake Logic
+        if (screenShake > 0 && currentGameState === 'GAMEOVER') {
+            let dx = (Math.random() - 0.5) * 15;
+            let dy = (Math.random() - 0.5) * 15;
+            ctx.translate(dx, dy);
+            screenShake--;
         }
+
+        drawBackgroundParallax();
 
         if (currentGameState === 'PLAYING') {
             player.update();
             collectibles.update();
             meetings.update();
-            frames++;
         }
         
         if (currentGameState === 'PLAYING' || currentGameState === 'GAMEOVER') {
             meetings.draw();
             collectibles.draw();
             player.draw();
+            updateAndDrawParticles();
         }
         
+        ctx.restore(); // Restore context so UI doesn't shake
+        
         drawUI();
+        frames++;
         requestAnimationFrame(loop);
     }
 
@@ -488,7 +598,7 @@
             currentGameState = 'PLAYING';
         } else if (currentGameState === 'PLAYING') {
             player.fly();
-        } else if (currentGameState === 'GAMEOVER') {
+        } else if (currentGameState === 'GAMEOVER' && screenShake <= 0) {
             resetGame();
         }
     };
@@ -499,9 +609,7 @@
         if(e.code === 'Space') handleInput();
     });
 
-    // Initialize
     loop();
-
 </script>
 </body>
 </html>
