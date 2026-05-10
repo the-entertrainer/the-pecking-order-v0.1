@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Pecking Order v0.1</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            background: #1a1a1a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas { 
+            box-shadow: 0 0 30px rgba(0,0,0,0.8); 
+            border: 4px solid #333; 
+        }
+        #ui-layer { 
+            position: absolute; 
+            top: 20px; 
+            width: 100%; 
+            pointer-events: none; 
+            text-align: center; 
+            z-index: 10;
+        }
+        h1 {
+            color: #00ff00;
+            text-shadow: 2px 2px 0px #000;
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 2px;
+        }
+        p {
+            color: #fff;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-layer">
+        <h1 id="score-text">MINUTES SAVED: 0</h1>
+        <p>Tap / Click to Pivot Gravity</p>
+    </div>
+
+    <script>
+        // --- ASSET DATA URIs (Zero-Cost Hosting) ---
+        const svgWorker = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjgiIGhlaWdodD0iNiIgZmlsbD0iI2ZmY2M5OSIvPjxyZWN0IHg9IjMiIHk9IjgiIHdpZHRoPSIxMCIgaGVpZ2h0PSI4IiBmaWxsPSIjMWEzNjViIi8+PHJlY3QgeD0iNyIgeT0iOCIgd2lkdGg9IjIiIGhlaWdodD0iNCIgZmlsbD0iI2ZmZDAwMCIvPjwvc3ZnPg==';
+        const svgDesk = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAxNiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjE2IiBmaWxsPSIjOGM5Mjk4Ii8+PHJlY3QgeD0iMCIgeT0iNyIgd2lkdGg9IjMyIiBoZWlnaHQ9IjIiIGZpbGw9IiM1NTVjNjIiLz48Y2lyY2xlIGN4PSIyNCIgY3k9IjQiIHI9IjIiIGZpbGw9IiM2MDRhMzYiIG9wYWNpdHk9IjAuNSIvPjwvc3ZnPg==';
+        const svgStapler = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTIgMThMMjIgMThMMjIgMTZMMiAxNloiIGZpbGw9IiM1NTVjNjIiLz48cGF0aCBkPSJNMjIgMTZMMiAxMEwyIDZMMjIgMTJaIiBmaWxsPSIjYmJiIi8+PC9zdmc+';
+        const svgRooster = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMjQiIGZpbGw9IiNmZmYiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjI0IiByPSI2IiBmaWxsPSIjMGYwIi8+PGNpcmNsZSBjeD0iMjAiIGN5PSIyNCIgcj0iMiIgZmlsbD0iIzAwMCIvPjxwYXRoIGQ9Ik0zMiA4TDI0IDBMNDAgMFoiIGZpbGw9IiNmMDAiLz48cGF0aCBkPSJNOCAzMkwxNiAzN0w4IDQyWiIgZmlsbD0iIzk5OSIvPjwvc3ZnPg==';
+
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 450,
+            backgroundColor: '#2a2a35',
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 1800 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        const game = new Phaser.Game(config);
+
+        // Game Variables
+        let player;
+        let desk;
+        let obstacles;
+        let rooster;
+        let isFlipped = false;
+        let gameSpeed = 300;
+        let score = 0;
+        let scoreTextElement;
+        let isGameOver = false;
+        let spawnTimer;
+
+        function preload() {
+            this.load.image('worker', svgWorker);
+            this.load.image('desk', svgDesk);
+            this.load.image('stapler', svgStapler);
+            this.load.image('rooster', svgRooster);
+        }
+
+        function create() {
+            // UI Element
+            scoreTextElement = document.getElementById('score-text');
+
+            // The Looming Executive Rooster (Background)
+            rooster = this.add.image(650, 225, 'rooster').setScale(4);
+            rooster.setAlpha(0.2); // Keeps him menacing but in the background
+            
+            // Subtle breathing animation for the Rooster
+            this.tweens.add({
+                targets: rooster,
+                scaleY: 4.2,
+                scaleX: 3.9,
+                duration: 2000,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
+            // The Endless Desk (TileSprite)
+            desk = this.add.tileSprite(400, 225, 800, 32, 'desk').setScale(2);
+            this.physics.add.existing(desk, true); // Static body
+
+            // The Player (Office Worker)
+            player = this.physics.add.sprite(150, 150, 'worker').setScale(3);
+            player.setCollideWorldBounds(true);
+            
+            // Collision between player and the desk
+            this.physics.add.collider(player, desk);
+
+            // Obstacles Group
+            obstacles = this.physics.add.group();
+            this.physics.add.overlap(player, obstacles, triggerGameOver, null, this);
+
+            // Input handling for the "Gravity Flip"
+            this.input.on('pointerdown', pivotGravity, this);
+            this.input.keyboard.on('keydown-SPACE', pivotGravity, this);
+
+            // Spawner
+            spawnTimer = this.time.addEvent({
+                delay: 1200,
+                callback: spawnObstacle,
+                callbackScope: this,
+                loop: true
+            });
+        }
+
+        function pivotGravity() {
+            if (isGameOver) {
+                restartGame.call(this);
+                return;
+            }
+
+            isFlipped = !isFlipped;
+            player.setFlipY(isFlipped);
+            
+            // Snap gravity and apply a small jolt to detach from the desk instantly
+            if (isFlipped) {
+                this.physics.world.gravity.y = -1800;
+                player.setVelocityY(-200); 
+            } else {
+                this.physics.world.gravity.y = 1800;
+                player.setVelocityY(200);
+            }
+        }
+
+        function spawnObstacle() {
+            if (isGameOver) return;
+
+            // Randomize Top or Bottom of the desk
+            const isTop = Math.random() > 0.5;
+            // Calculate Y position based on desk placement
+            const yPos = isTop ? 175 : 275; 
+
+            const obstacle = obstacles.create(850, yPos, 'stapler').setScale(2);
+            
+            if (!isTop) {
+                obstacle.setFlipY(true);
+            }
+
+            obstacle.setVelocityX(-gameSpeed);
+            obstacle.setImmovable(true);
+            obstacle.body.allowGravity = false;
+
+            // Increase difficulty over time
+            gameSpeed += 5;
+            spawnTimer.delay = Math.max(600, spawnTimer.delay - 10);
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // Scroll the desk to create the illusion of forward movement
+            desk.tilePositionX += (gameSpeed * 0.01);
+
+            // Score calculation
+            score += 0.05;
+            scoreTextElement.innerText = `MINUTES SAVED: ${Math.floor(score)}`;
+
+            // Cleanup off-screen obstacles to save memory
+            obstacles.getChildren().forEach(obs => {
+                if (obs.x < -50) {
+                    obs.destroy();
+                }
+            });
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            this.physics.pause();
+            player.setTint(0xff0000);
+            
+            // Sudden Rooster shake effect on death
+            this.cameras.main.shake(200, 0.02);
+
+            setTimeout(() => {
+                alert(`REDUNDANT!\n\nYou saved ${Math.floor(score)} minutes, but you hit a corporate hazard. Your position has been terminated and given to Jane Doe.\n\nTap OK to reapply.`);
+            }, 300);
+        }
+
+        function restartGame() {
+            isGameOver = false;
+            score = 0;
+            gameSpeed = 300;
+            isFlipped = false;
+            this.physics.world.gravity.y = 1800;
+            spawnTimer.delay = 1200;
+            this.scene.restart();
+        }
+    </script>
+</body>
+</html>
