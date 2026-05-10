@@ -2,241 +2,385 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>The Pecking Order v0.4</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Out of Office: The Daily Sync</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html {
-            width: 100%;
-            height: 100%;
-            background-color: #111;
-            overscroll-behavior: none;
-            touch-action: none; 
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* Prevents mobile scrolling */
         }
-        #game-container {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        canvas {
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+        #gameCanvas {
+            background-color: #1e1e24; /* Teams Dark Mode Background */
+            border: 4px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            image-rendering: pixelated; /* Forces retro look */
         }
     </style>
 </head>
 <body>
-    <div id="game-container"></div>
 
-    <script>
-        const config = {
-            type: Phaser.AUTO,
-            parent: 'game-container',
-            width: 720,  
-            height: 1280, 
-            backgroundColor: '#1e1e24',
-            pixelArt: true, 
-            scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH
-            },
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 3500 }, 
-                    debug: false
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- GAME STATE ---
+    let frames = 0;
+    let daysEscaped = 0;
+    let chickenEscapes = 0; // For the polaroid count
+    let currentGameState = 'START'; // START, PLAYING, GAMEOVER
+    let isClicking = false;
+
+    // --- ARRAYS FOR RANDOM GENERATION ---
+    const meetingTitles = [
+        "Quick Sync (90 Mins)",
+        "Synergy Alignment",
+        "Pre-read Discussion",
+        "Mandatory Fun Event",
+        "Brainstorming the Pre-Brainstorm",
+        "Quarterly Review",
+        "Urgent: Action Required",
+        "Post-Mortem Analysis"
+    ];
+
+    const gameOvers = [
+        "Game Over. You asked a question at 4:59 PM. You missed dinner.",
+        "Game Over. You made eye contact with the Chicken. You now own the Excel tracker.",
+        "Game Over. You forgot to mute your mic while flushing. HR is calling.",
+        "Game Over. You agreed to take notes. You are now the Project Manager.",
+        "Game Over. You said 'Let's circle back'. Now you're stuck in a loop forever."
+    ];
+
+    let currentGameOverText = "";
+
+    // --- ENTITIES ---
+
+    // 1. The Player (Office Chair)
+    // AI Sprite Guide: 64x64 pixel art of employee in rolling chair.
+    const player = {
+        x: 150,
+        y: 200,
+        width: 48,  // Hitbox slightly smaller than 64x64 sprite
+        height: 48,
+        velocity: 0,
+        gravity: 0.25,
+        lift: -6,
+        
+        draw: function() {
+            // Placeholder: Replace with ctx.drawImage(playerSprite, this.x, this.y, 64, 64)
+            ctx.fillStyle = '#ffcc00'; // Yellow pixel chair placeholder
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            
+            // Draw a little face to show direction
+            ctx.fillStyle = 'black';
+            ctx.fillRect(this.x + 30, this.y + 10, 5, 5); // Eye
+        },
+        
+        update: function() {
+            this.velocity += this.gravity;
+            this.y += this.velocity;
+            
+            // Floor collision
+            if (this.y + this.height >= canvas.height) {
+                this.y = canvas.height - this.height;
+                triggerGameOver();
+            }
+            // Ceiling collision
+            if (this.y <= 0) {
+                this.y = 0;
+                this.velocity = 0;
+            }
+        },
+        
+        fly: function() {
+            this.velocity = this.lift;
+        }
+    };
+
+    // 2. The Meeting Blocks (Obstacles)
+    // AI Sprite Guide: 128px wide repeating solid purple/blue textures.
+    const meetings = {
+        array: [],
+        width: 100,
+        gap: 180, // Space between top and bottom blocks
+        dx: 3,    // Speed of scrolling
+        
+        draw: function() {
+            for (let i = 0; i < this.array.length; i++) {
+                let m = this.array[i];
+                
+                // Draw Top Meeting Block
+                ctx.fillStyle = '#4b3b85'; // Teams Purple
+                ctx.fillRect(m.x, 0, this.width, m.top);
+                
+                // Draw Bottom Meeting Block
+                ctx.fillRect(m.x, canvas.height - m.bottom, this.width, m.bottom);
+                
+                // Draw Meeting Titles (Simulating calendar text)
+                ctx.fillStyle = 'white';
+                ctx.font = "12px Courier New";
+                
+                // Top block text
+                ctx.save();
+                ctx.translate(m.x + 20, m.top - 20);
+                ctx.fillText(m.title, 0, 0);
+                ctx.restore();
+
+                // Bottom block text
+                ctx.save();
+                ctx.translate(m.x + 20, canvas.height - m.bottom + 30);
+                ctx.fillText(m.title, 0, 0);
+                ctx.restore();
+
+                // Draw Chicken Boss if applicable (Mini Window inside block)
+                if (m.hasChicken) {
+                    ctx.fillStyle = '#2b2b36'; // Dark window
+                    ctx.fillRect(m.x - 10, m.top + (this.gap/2) - 40, 120, 80);
+                    ctx.fillStyle = '#eb4034'; // Red chicken placeholder
+                    ctx.fillRect(m.x + 30, m.top + (this.gap/2) - 20, 40, 40);
+                    ctx.fillStyle = 'white';
+                    ctx.font = "10px Courier New";
+                    ctx.fillText("CIRCLING BACK!", m.x - 5, m.top + (this.gap/2) - 50);
                 }
-            },
-            scene: {
-                create: create,
-                update: update
             }
-        };
-
-        const game = new Phaser.Game(config);
-
-        let player, desk, obstacles, rooster;
-        let isFlipped = false;
-        let gameSpeed = 450; 
-        let score = 0;
-        let isGameOver = false;
-        let spawnTimer;
-
-        let uiLayer, scoreText, gameOverPanel, finalScoreText;
-
-        function create() {
-            // ==========================================
-            // FOOLPROOF TEXTURE GENERATION
-            // Paints the assets directly into memory
-            // ==========================================
-            const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-            // 1. Draw Desk Tile (32x32)
-            g.fillStyle(0x8c9298, 1);
-            g.fillRect(0, 0, 32, 32);
-            g.fillStyle(0x555c62, 1);
-            g.fillRect(0, 14, 32, 4); // Edge detail
-            g.generateTexture('desk', 32, 32);
-            g.clear();
-
-            // 2. Draw Worker (16x16)
-            g.fillStyle(0xffcc99, 1); // Head
-            g.fillRect(4, 2, 8, 6);
-            g.fillStyle(0x1a365b, 1); // Suit
-            g.fillRect(3, 8, 10, 8);
-            g.fillStyle(0xffd000, 1); // Tie
-            g.fillRect(7, 8, 2, 4);
-            g.generateTexture('worker', 16, 16);
-            g.clear();
-
-            // 3. Draw Stapler (24x24)
-            g.fillStyle(0x555c62, 1); // Base
-            g.fillRect(2, 16, 20, 4);
-            g.fillStyle(0xbbbbbb, 1); // Top
-            g.fillTriangle(2, 16, 22, 6, 22, 16);
-            g.generateTexture('stapler', 24, 24);
-            g.clear();
-
-            // 4. Draw Executive Rooster (64x64)
-            g.fillStyle(0xffffff, 1); // Body
-            g.fillCircle(32, 32, 24);
-            g.fillStyle(0xff0000, 1); // Comb
-            g.fillTriangle(32, 8, 24, 0, 40, 0);
-            g.fillStyle(0x00ff00, 1); // Glowing Eye
-            g.fillCircle(20, 24, 6);
-            g.fillStyle(0x000000, 1); // Pupil
-            g.fillCircle(20, 24, 2);
-            g.fillStyle(0x999999, 1); // Beak
-            g.fillTriangle(8, 32, 16, 37, 8, 42);
-            g.generateTexture('rooster', 64, 64);
-            g.clear();
-
-            // ==========================================
-            // GAME SETUP
-            // ==========================================
-            const centerX = this.cameras.main.width / 2;
-            const centerY = this.cameras.main.height / 2;
-
-            // Background Rooster
-            rooster = this.add.image(centerX, centerY - 300, 'rooster').setScale(8);
-            rooster.setAlpha(0.15);
-            this.tweens.add({
-                targets: rooster, scaleY: 8.5, scaleX: 7.8, duration: 2500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-            });
-
-            // The Desk
-            desk = this.add.tileSprite(centerX, centerY, 1440, 64, 'desk').setScale(1.5);
-            this.physics.add.existing(desk, true);
-
-            // The Player
-            player = this.physics.add.sprite(150, centerY - 150, 'worker').setScale(4.5);
-            player.body.setSize(10, 14); 
-            player.setCollideWorldBounds(true);
-            this.physics.add.collider(player, desk);
-
-            // Obstacles
-            obstacles = this.physics.add.group();
-            this.physics.add.overlap(player, obstacles, triggerGameOver, null, this);
-
-            // In-Game UI
-            scoreText = this.add.text(centerX, 150, 'MINUTES SAVED: 0', { 
-                fontFamily: 'monospace', fontSize: '48px', color: '#00ff00', fontStyle: 'bold' 
-            }).setOrigin(0.5);
-
-            const instructionText = this.add.text(centerX, 220, 'TAP TO PIVOT', { 
-                fontFamily: 'monospace', fontSize: '28px', color: '#ffffff', alpha: 0.5 
-            }).setOrigin(0.5);
-
-            // Game Over Panel
-            gameOverPanel = this.add.container(centerX, centerY).setDepth(100).setVisible(false);
-            const bg = this.add.rectangle(0, 0, 650, 450, 0x000000, 0.95).setStrokeStyle(4, 0xff0000);
-            const title = this.add.text(0, -140, 'REDUNDANT!', { fontFamily: 'monospace', fontSize: '64px', color: '#ff0000', fontStyle: 'bold' }).setOrigin(0.5);
-            finalScoreText = this.add.text(0, -20, '', { fontFamily: 'monospace', fontSize: '32px', color: '#ffffff', align: 'center' }).setOrigin(0.5);
-            const restartBtn = this.add.text(0, 120, '> TAP TO REAPPLY <', { fontFamily: 'monospace', fontSize: '40px', color: '#00ff00' }).setOrigin(0.5);
+        },
+        
+        update: function() {
+            // Spawn new meetings every 150 frames
+            if (frames % 150 === 0) {
+                // Randomly calculate the top meeting height
+                // Max top height is canvas height minus gap minus min bottom height
+                let maxPos = canvas.height - this.gap - 50; 
+                let topHeight = Math.random() * (maxPos - 50) + 50; 
+                let bottomHeight = canvas.height - this.gap - topHeight;
+                
+                // 20% chance to spawn a Chicken Boss on this block
+                let spawnChicken = Math.random() < 0.2;
+                
+                this.array.push({
+                    x: canvas.width,
+                    top: topHeight,
+                    bottom: bottomHeight,
+                    title: meetingTitles[Math.floor(Math.random() * meetingTitles.length)],
+                    hasChicken: spawnChicken,
+                    passed: false,
+                    chickenEscaped: false
+                });
+            }
             
-            this.tweens.add({ targets: restartBtn, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
-            gameOverPanel.add([bg, title, finalScoreText, restartBtn]);
-
-            // Input Handler
-            this.input.on('pointerdown', handleInput, this);
-
-            // Spawner
-            spawnTimer = this.time.addEvent({ delay: 1000, callback: spawnObstacle, callbackScope: this, loop: true });
+            for (let i = 0; i < this.array.length; i++) {
+                let m = this.array[i];
+                m.x -= this.dx;
+                
+                // Collision Detection (AABB)
+                if (player.x + player.width > m.x && player.x < m.x + this.width) {
+                    // Check top block
+                    if (player.y < m.top) {
+                        triggerGameOver();
+                    }
+                    // Check bottom block
+                    if (player.y + player.height > canvas.height - m.bottom) {
+                        triggerGameOver();
+                    }
+                    // Check Chicken Boss hit box
+                    if (m.hasChicken) {
+                        let chickenY = m.top + (this.gap/2) - 40;
+                        if (player.y + player.height > chickenY && player.y < chickenY + 80) {
+                             triggerGameOver();
+                        }
+                    }
+                }
+                
+                // Score Update & Polaroid Collection
+                if (m.x + this.width < player.x && !m.passed) {
+                    daysEscaped++;
+                    m.passed = true;
+                    // If we passed a chicken, add a polaroid escape point
+                    if (m.hasChicken && !m.chickenEscaped) {
+                        chickenEscapes++;
+                        m.chickenEscaped = true;
+                    }
+                }
+                
+                // Remove off-screen blocks
+                if (m.x + this.width < 0) {
+                    this.array.shift();
+                    i--;
+                }
+            }
+        },
+        
+        reset: function() {
+            this.array = [];
         }
+    };
 
-        function handleInput() {
-            if (isGameOver) { restartGame.call(this); return; }
+    // --- GAME LOOP & LOGIC ---
 
-            isFlipped = !isFlipped;
-            player.setFlipY(isFlipped);
+    function triggerGameOver() {
+        currentGameState = 'GAMEOVER';
+        currentGameOverText = gameOvers[Math.floor(Math.random() * gameOvers.length)];
+    }
+
+    function resetGame() {
+        player.y = 200;
+        player.velocity = 0;
+        meetings.reset();
+        frames = 0;
+        daysEscaped = 0;
+        chickenEscapes = 0;
+        currentGameState = 'PLAYING';
+    }
+
+    function drawUI() {
+        if (currentGameState === 'START') {
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white';
+            ctx.font = "30px Courier New";
+            ctx.fillText("OUT OF OFFICE: THE DAILY SYNC", 120, 250);
+            ctx.font = "20px Courier New";
+            ctx.fillText("Click or Tap to Float. Avoid Meetings.", 160, 300);
+            ctx.fillText("Click to Start", 310, 350);
+        }
+        
+        if (currentGameState === 'PLAYING') {
+            ctx.fillStyle = 'white';
+            ctx.font = "24px Courier New";
+            ctx.fillText("Days Escaped: " + daysEscaped, 20, 40);
+        }
+        
+        if (currentGameState === 'GAMEOVER') {
+            // "Teams Call" UI Overlay
+            ctx.fillStyle = '#1e1e24';
+            ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
+            ctx.strokeStyle = '#4b3b85';
+            ctx.lineWidth = 5;
+            ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
             
-            if (isFlipped) {
-                this.physics.world.gravity.y = -3500;
-                player.setVelocityY(-400); 
+            ctx.fillStyle = '#eb4034';
+            ctx.font = "30px Courier New";
+            ctx.fillText("MEETING JOINED.", 280, 120);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = "18px Courier New";
+            
+            // Word wrap function for the game over text
+            wrapText(ctx, currentGameOverText, 80, 180, canvas.width - 160, 25);
+            
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = "24px Courier New";
+            ctx.fillText("Total Days Escaped: " + daysEscaped, 250, 350);
+            
+            ctx.fillStyle = '#7289da';
+            ctx.fillText("Polaroids Collected (Chickens Dodged): " + chickenEscapes, 120, 390);
+
+            // Fake Share Buttons
+            ctx.fillStyle = '#25D366'; // WhatsApp Green
+            ctx.fillRect(200, 450, 180, 40);
+            ctx.fillStyle = '#E1306C'; // Instagram Pink
+            ctx.fillRect(420, 450, 180, 40);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = "16px Courier New";
+            ctx.fillText("Share to WA", 230, 475);
+            ctx.fillText("Share to IG", 450, 475);
+            
+            ctx.font = "14px Courier New";
+            ctx.fillText("Click anywhere to Rejoin the Calendar", 240, 530);
+        }
+    }
+
+    // Helper function for wrapping text on canvas
+    function wrapText(context, text, x, y, maxWidth, lineHeight) {
+        let words = text.split(' ');
+        let line = '';
+        for(let n = 0; n < words.length; n++) {
+            let testLine = line + words[n] + ' ';
+            let metrics = context.measureText(testLine);
+            let testWidth = metrics.width;
+            if (testWidth > maxWidth && n > 0) {
+                context.fillText(line, x, y);
+                line = words[n] + ' ';
+                y += lineHeight;
             } else {
-                this.physics.world.gravity.y = 3500;
-                player.setVelocityY(400);
+                line = testLine;
             }
         }
+        context.fillText(line, x, y);
+    }
 
-        function spawnObstacle() {
-            if (isGameOver) return;
-
-            const isTop = Math.random() > 0.5;
-            const centerY = this.cameras.main.height / 2;
-            const yPos = isTop ? centerY - 85 : centerY + 85; 
-
-            const obstacle = obstacles.create(850, yPos, 'stapler').setScale(3);
-            obstacle.body.setSize(20, 16); 
-            
-            if (!isTop) obstacle.setFlipY(true);
-
-            obstacle.setVelocityX(-gameSpeed);
-            obstacle.setImmovable(true);
-            obstacle.body.allowGravity = false;
-
-            gameSpeed += 5;
-            spawnTimer.delay = Math.max(500, spawnTimer.delay - 10);
+    function loop() {
+        // Clear Canvas
+        ctx.fillStyle = '#1e1e24'; // Background color
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Background Grid (simulating calendar rows)
+        ctx.strokeStyle = '#2b2b36';
+        ctx.lineWidth = 1;
+        for(let i=0; i<canvas.height; i+=50) {
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(canvas.width, i);
+            ctx.stroke();
         }
 
-        function update() {
-            if (isGameOver) return;
-
-            desk.tilePositionX += (gameSpeed * 0.015);
-            score += 0.05;
-            scoreText.setText(`MINUTES SAVED: ${Math.floor(score)}`);
-
-            obstacles.getChildren().forEach(obs => {
-                if (obs.x < -100) obs.destroy();
-            });
+        if (currentGameState === 'PLAYING') {
+            player.update();
+            meetings.update();
+            frames++;
         }
-
-        function triggerGameOver() {
-            if (isGameOver) return; 
-            isGameOver = true;
-            this.physics.pause();
-            
-            player.setTint(0xff0000);
-            this.cameras.main.shake(200, 0.015);
-
-            finalScoreText.setText(`You saved ${Math.floor(score)} minutes.\n\nYour position has been\ngiven to Jane Doe.`);
-            gameOverPanel.setVisible(true);
-            
-            this.time.delayedCall(500, () => { this.input.once('pointerdown', restartGame, this); });
+        
+        // Draw logic is separate from update logic
+        if (currentGameState === 'PLAYING' || currentGameState === 'GAMEOVER') {
+            meetings.draw();
+            player.draw();
         }
+        
+        drawUI();
+        
+        requestAnimationFrame(loop);
+    }
 
-        function restartGame() {
-            isGameOver = false;
-            score = 0;
-            gameSpeed = 450;
-            isFlipped = false;
-            this.physics.world.gravity.y = 3500;
-            this.scene.restart();
+    // --- INPUT HANDLING ---
+    
+    // Mouse / Touch
+    canvas.addEventListener('mousedown', handleInput);
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent screen zooming/scrolling
+        handleInput();
+    });
+
+    // Keyboard (Spacebar)
+    document.addEventListener('keydown', function(e) {
+        if(e.code === 'Space') {
+            handleInput();
         }
-    </script>
+    });
+
+    function handleInput() {
+        if (currentGameState === 'START') {
+            currentGameState = 'PLAYING';
+        } else if (currentGameState === 'PLAYING') {
+            player.fly();
+        } else if (currentGameState === 'GAMEOVER') {
+            resetGame();
+        }
+    }
+
+    // Start the game loop
+    loop();
+
+</script>
 </body>
 </html>
