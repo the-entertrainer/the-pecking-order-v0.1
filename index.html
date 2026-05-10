@@ -8,9 +8,9 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #050508;
-            color: #ffffff;
-            font-family: 'Courier New', Courier, monospace;
+            background-color: #e0e0e0; /* Gray backdrop for the phone */
+            color: #242424;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -24,13 +24,13 @@
             height: 100vh;
             max-width: 450px;
             max-height: 850px;
-            box-shadow: 0 0 50px rgba(255, 0, 128, 0.2);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            background-color: #ffffff;
         }
         #gameCanvas {
-            background-color: #120b29; /* Deep neon night sky */
+            background-color: #ffffff; /* Teams Light Mode */
             width: 100%;
             height: 100%;
-            image-rendering: pixelated; /* Forces retro blocky look */
         }
     </style>
 </head>
@@ -54,18 +54,21 @@
     let screenShake = 0;
 
     // --- PROCEDURAL GENERATORS ---
-    const titlePrefixes = ["Quick", "Mandatory", "Optional", "Urgent", "Daily", "Weekly", "Q3", "Q4", "Strategic", "Tactical", "Deep Dive", "Touchbase", "Synergy", "Post-Mortem"];
-    const titleMiddles = ["Alignment", "Synergy", "Bandwidth", "Action Items", "Roadblocks", "KPI", "ROI", "Paradigm", "Wheelhouse", "Deep Dive", "Touchpoint", "Circle Back", "Capacity"];
-    const titleSuffixes = ["Sync", "Review", "Discussion", "Meeting", "Catch-up", "Huddle", "Session", "Workshop", "Standup", "Kickoff", "Check-in", "Debrief", "Round Table"];
+    const titlePrefixes = ["Quick", "Mandatory", "Optional", "Urgent", "Daily", "Weekly", "Q3", "Strategic", "Tactical", "Deep Dive", "Touchbase", "Synergy", "Post-Mortem"];
+    const titleMiddles = ["Alignment", "Synergy", "Bandwidth", "Action Items", "Roadblocks", "KPI", "ROI", "Paradigm", "Wheelhouse", "Touchpoint", "Circle Back", "Capacity"];
+    const titleSuffixes = ["Sync", "Review", "Discussion", "Meeting", "Catch-up", "Huddle", "Session", "Workshop", "Standup", "Kickoff", "Check-in", "Debrief"];
     const chickenMessages = ["Double-click that!", "Are we aligned?", "Boil the ocean!", "Take it offline!", "Per my last email.", "Put a pin in it.", "Low hanging fruit!", "Shift the paradigm!", "What's the ROI?", "Circle back.", "You're on mute!"];
 
     const gameOvers = [
-        "Game Over. You asked a question at 4:59 PM. The meeting extended by 45 minutes.",
-        "Game Over. You accidentally shared a tab with a job application open.",
-        "Game Over. You asked 'Can everyone see my screen?' 14 times.",
-        "Game Over. You were assigned to a 'Tiger Team'. It's just more work.",
-        "Game Over. You replied 'Reply All' to a company-wide email.",
-        "Game Over. You said 'Let's circle back'. Now you're stuck in a loop forever."
+        "You asked a question at 4:59 PM. The meeting was extended by 45 minutes.",
+        "You accidentally shared a tab with a job application open.",
+        "You asked 'Can everyone see my screen?' 14 times. You died of embarrassment.",
+        "TulTul noticed you were offline for 4 minutes. You are on a PIP.",
+        "You volunteered to take notes. You are now the defacto project manager.",
+        "Jane Doe from HR would like a quick word.",
+        "You replied 'Reply All' to a company-wide email.",
+        "You said 'Let's circle back'. Now you're stuck in a loop forever.",
+        "You thought you were on mute and sighed heavily."
     ];
 
     let currentGameOverText = "";
@@ -74,7 +77,7 @@
         let p = titlePrefixes[Math.floor(Math.random() * titlePrefixes.length)];
         let m = titleMiddles[Math.floor(Math.random() * titleMiddles.length)];
         let s = titleSuffixes[Math.floor(Math.random() * titleSuffixes.length)];
-        return `${p} ${m}\n${s}`; // Added newline for better boxing
+        return `${p} ${m}\n${s}`;
     }
 
     // --- PARTICLES ---
@@ -95,30 +98,18 @@
     function updateAndDrawParticles() {
         for(let i=0; i<particles.length; i++) {
             let p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.life -= 0.04;
+            p.x += p.vx; p.y += p.vy; p.life -= 0.04;
             if(p.life > 0) {
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life;
-                ctx.fillRect(p.x, p.y, p.size, p.size); // Blocky particles
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
                 ctx.globalAlpha = 1.0;
-            } else {
-                particles.splice(i, 1); i--;
-            }
+            } else { particles.splice(i, 1); i--; }
         }
-    }
-
-    // --- PARALLAX BACKGROUND ---
-    const buildingsLayer1 = [];
-    const buildingsLayer2 = [];
-    for(let i=0; i<10; i++) {
-        buildingsLayer1.push({ x: i * 80, width: 60 + Math.random()*40, height: 100 + Math.random()*150 });
-        buildingsLayer2.push({ x: i * 120, width: 80 + Math.random()*60, height: 200 + Math.random()*200 });
     }
 
     // --- POWER UP STATES ---
     let activePowerUps = { shield: false, shrinkTimer: 0, slowTimer: 0 };
+    let invincibilityTimer = 0; // For after shield breaks
 
     // --- ENTITIES ---
 
@@ -126,35 +117,37 @@
     const player = {
         x: 80, y: 350,
         baseWidth: 42, baseHeight: 42,
-        width: 42, height: 42,
+        hitWidth: 42, hitHeight: 42, // Actual collision box
         velocity: 0, gravity: 0.4, lift: -7.5, rotation: 0,
         
         draw: function() {
+            // Blinking effect if invincible
+            if (invincibilityTimer > 0 && Math.floor(frames / 5) % 2 === 0) return;
+
             ctx.save();
-            ctx.translate(this.x + this.width/2, this.y + this.height/2);
+            ctx.translate(this.x + this.hitWidth/2, this.y + this.hitHeight/2);
             this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.08)));
             ctx.rotate(this.rotation);
 
-            if (activePowerUps.shrinkTimer > 0) {
-                ctx.scale(0.6, 0.6);
-                activePowerUps.shrinkTimer--;
-            }
+            // Visual scaling
+            let scaleFactor = (activePowerUps.shrinkTimer > 0) ? 0.6 : 1;
+            ctx.scale(scaleFactor, scaleFactor);
 
             if (activePowerUps.shield) {
-                ctx.fillStyle = 'rgba(0, 243, 255, 0.3)';
-                ctx.beginPath(); ctx.arc(0, 0, this.width + 5, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = 'rgba(0, 120, 212, 0.2)'; // Teams Blue
+                ctx.beginPath(); ctx.arc(0, 0, this.baseWidth + 5, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#0078d4'; ctx.lineWidth = 2; ctx.stroke();
             }
 
-            // HD Blocky Player Sprite Construction
-            ctx.fillStyle = '#000000'; // Shadow base
-            ctx.fillRect(-this.baseWidth/2 + 4, -this.baseHeight/2 + 4, this.baseWidth, this.baseHeight);
+            // Player Sprite Construction
+            ctx.fillStyle = 'rgba(0,0,0,0.2)'; // Soft drop shadow
+            ctx.fillRect(-this.baseWidth/2 + 3, -this.baseHeight/2 + 3, this.baseWidth, this.baseHeight);
             
-            ctx.fillStyle = '#2b2b36'; // Chair back
+            ctx.fillStyle = '#424242'; // Dark gray chair back
             ctx.fillRect(-this.baseWidth/2, -this.baseHeight/2, 15, this.baseHeight);
-            ctx.fillStyle = '#ffcc00'; // Employee Shirt
+            ctx.fillStyle = '#0078d4'; // Teams blue shirt
             ctx.fillRect(-this.baseWidth/2 + 15, -this.baseHeight/4, 20, 25);
-            ctx.fillStyle = '#ffaaeb'; // Head
+            ctx.fillStyle = '#ffb69b'; // Head
             ctx.fillRect(-this.baseWidth/2 + 10, -this.baseHeight/2 - 5, 18, 18);
             ctx.fillStyle = '#ffffff'; // Coffee Cup
             ctx.fillRect(-this.baseWidth/2 + 35, -this.baseHeight/4 + 5, 8, 10);
@@ -163,16 +156,28 @@
         },
         
         update: function() {
+            // Update actual collision hitboxes dynamically based on shrink powerup
+            if (activePowerUps.shrinkTimer > 0) {
+                this.hitWidth = this.baseWidth * 0.6;
+                this.hitHeight = this.baseHeight * 0.6;
+                activePowerUps.shrinkTimer--;
+            } else {
+                this.hitWidth = this.baseWidth;
+                this.hitHeight = this.baseHeight;
+            }
+
+            if (invincibilityTimer > 0) invincibilityTimer--;
+
             this.velocity += this.gravity;
             this.y += this.velocity;
             
-            if (this.y + this.height >= canvas.height) { this.y = canvas.height - this.height; handleCollision(); }
+            if (this.y + this.hitHeight >= canvas.height) { this.y = canvas.height - this.hitHeight; handleCollision(); }
             if (this.y <= 0) { this.y = 0; this.velocity = 0; }
         },
         
         fly: function() {
             this.velocity = this.lift;
-            spawnParticles(this.x, this.y + this.height, '#ffffff', 5);
+            spawnParticles(this.x, this.y + this.hitHeight, '#a6a6a6', 3);
         }
     };
 
@@ -180,30 +185,34 @@
     const collectibles = {
         array: [],
         types: [
-            { id: 'SHIELD', color: '#00f3ff', text: '☕' },
-            { id: 'SLOW', color: '#39ff14', text: '📶' },
-            { id: 'SHRINK', color: '#ff007f', text: '🚫' }
+            { id: 'SHIELD', color: '#0078d4', text: '☕' }, // Teams Blue
+            { id: 'SLOW', color: '#107c41', text: '📶' },   // Excel Green
+            { id: 'SHRINK', color: '#d83b01', text: '🚫' }  // Office Orange
         ],
-        size: 30,
+        size: 32,
 
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
                 let p = this.array[i];
                 let bob = Math.sin(frames * 0.1) * 6;
                 
-                // Shadow
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.fillRect(p.x + 4, p.y + bob + 4, this.size, this.size);
-                
-                // Box
+                // Drop shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.15)';
+                if (ctx.roundRect) {
+                    ctx.beginPath(); ctx.roundRect(p.x + 3, p.y + bob + 3, this.size, this.size, 8); ctx.fill();
+                }
+
+                // Powerup Box
                 ctx.fillStyle = p.type.color;
-                ctx.fillRect(p.x, p.y + bob, this.size, this.size);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(p.x + 2, p.y + bob + 2, this.size - 4, this.size - 4);
+                if (ctx.roundRect) {
+                    ctx.beginPath(); ctx.roundRect(p.x, p.y + bob, this.size, this.size, 8); ctx.fill();
+                } else {
+                    ctx.fillRect(p.x, p.y + bob, this.size, this.size);
+                }
                 
-                ctx.fillStyle = 'black';
-                ctx.font = "18px Arial";
-                ctx.fillText(p.type.text, p.x + 4, p.y + 22 + bob);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = "18px 'Segoe UI Emoji', Arial";
+                ctx.fillText(p.type.text, p.x + 5, p.y + 22 + bob);
             }
         },
 
@@ -213,8 +222,9 @@
                 p.x -= currentScrollSpeed;
                 let actualY = p.y + Math.sin(frames * 0.1) * 6;
 
-                if (player.x < p.x + this.size && player.x + player.width > p.x &&
-                    player.y < actualY + this.size && player.y + player.height > actualY) {
+                // Checking collision against the dynamically sized hit box
+                if (player.x < p.x + this.size && player.x + player.hitWidth > p.x &&
+                    player.y < actualY + this.size && player.y + player.hitHeight > actualY) {
                     
                     spawnParticles(p.x, actualY, p.type.color, 20);
 
@@ -232,67 +242,66 @@
     // 3. Meeting Blocks (The Pipes)
     const meetings = {
         array: [],
-        width: 130, // Wider to fit text inside
-        gap: 230, 
+        width: 140, // Wide to match calendar slots
+        gap: 240, 
         
         draw: function() {
             for (let i = 0; i < this.array.length; i++) {
                 let m = this.array[i];
                 
-                // HD Blocky Pipe Construction
-                ctx.fillStyle = '#110b1a'; // Deep shadow
-                ctx.fillRect(m.x + 6, 0, this.width, m.top + 6);
-                ctx.fillRect(m.x + 6, canvas.height - m.bottom + 6, this.width, m.bottom);
+                // Draw Blocks using Teams styling (Rounded corners on the right)
+                ctx.fillStyle = 'rgba(0,0,0,0.1)'; // Shadow
+                ctx.fillRect(m.x + 4, 0, this.width, m.top + 4);
+                ctx.fillRect(m.x + 4, canvas.height - m.bottom + 4, this.width, m.bottom);
 
-                ctx.fillStyle = '#42247a'; // Main block color
+                ctx.fillStyle = '#e6e6fa'; // Light purple background
                 ctx.fillRect(m.x, 0, this.width, m.top);
                 ctx.fillRect(m.x, canvas.height - m.bottom, this.width, m.bottom);
                 
-                ctx.fillStyle = '#6b43bd'; // Highlight edge
+                ctx.fillStyle = '#5c2d91'; // Dark purple left border (Iconic Teams calendar look)
                 ctx.fillRect(m.x, 0, 6, m.top);
                 ctx.fillRect(m.x, canvas.height - m.bottom, 6, m.bottom);
-                ctx.fillRect(m.x, m.top - 6, this.width, 6);
-                ctx.fillRect(m.x, canvas.height - m.bottom, this.width, 6);
 
-                // --- TEXT WRAPPED STRICTLY INSIDE THE BLOCKS ---
-                drawBoxedText(ctx, m.title, m.x + 12, 15, this.width - 24, m.top - 20, "bold 14px Courier New", "#ffffff");
-                drawBoxedText(ctx, m.title, m.x + 12, canvas.height - m.bottom + 15, this.width - 24, m.bottom - 20, "bold 14px Courier New", "#ffffff");
+                // --- TEXT INSIDE THE BLOCKS ---
+                drawBoxedText(ctx, m.title, m.x + 15, 15, this.width - 20, m.top - 20, "bold 13px 'Segoe UI', Arial", "#242424");
+                drawBoxedText(ctx, m.title, m.x + 15, canvas.height - m.bottom + 15, this.width - 20, m.bottom - 20, "bold 13px 'Segoe UI', Arial", "#242424");
 
                 // --- CHICKEN BOSS WITH SPRING ANIMATION ---
                 if (m.hasChicken) {
-                    // Calculate animation scale (Spring effect)
-                    if (m.x < canvas.width - 20) {
-                        m.animScale += (1 - m.animScale) * 0.15; // Smooth ease-out
-                    }
+                    if (m.x < canvas.width - 20) { m.animScale += (1 - m.animScale) * 0.15; }
                     
                     let chickenY = canvas.height - m.bottom + 30; 
-                    let centerX = m.x - 30;
-                    let centerY = chickenY + 40;
+                    let centerX = m.x - 20;
+                    let centerY = chickenY + 30;
 
                     ctx.save();
                     ctx.translate(centerX, centerY);
-                    ctx.scale(m.animScale, m.animScale); // Pop up animation
+                    ctx.scale(m.animScale, m.animScale); 
                     
-                    // Chicken Window
-                    ctx.fillStyle = '#000000'; ctx.fillRect(-66, -36, 110, 80); // Shadow
-                    ctx.fillStyle = '#222233'; ctx.fillRect(-70, -40, 110, 80); // Base
-                    ctx.fillStyle = '#ff0055'; ctx.fillRect(-65, -35, 100, 70); // Red screen
+                    // Teams Video Call UI Window
+                    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(-70, -40, 110, 85); // Shadow
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(-70, -40, 110, 80); // White frame
+                    ctx.fillStyle = '#242424'; ctx.fillRect(-68, -38, 106, 76); // Dark video bg
                     
-                    // Blocky Chicken Sprite
+                    // Chicken Sprite
                     ctx.fillStyle = '#ffffff'; ctx.fillRect(-30, -10, 30, 40); // Body
-                    ctx.fillStyle = '#ffcc00'; ctx.fillRect(-10, -5, 15, 10); // Beak
-                    ctx.fillStyle = 'black'; ctx.fillRect(-20, -5, 6, 6); // Eye
+                    ctx.fillStyle = '#ffb900'; ctx.fillRect(-10, -5, 15, 10); // Beak
+                    ctx.fillStyle = 'white'; ctx.fillRect(-20, -6, 8, 8); // Eye white
+                    ctx.fillStyle = 'black'; ctx.fillRect(-16, -4, 4, 4); // Pupil
                     
-                    // Dynamic Callout Bubble inside animation context
+                    // Floating Name Tag
+                    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-65, 20, 60, 14);
+                    ctx.fillStyle = 'white'; ctx.font = "10px 'Segoe UI'"; ctx.fillText("Director", -62, 31);
+
+                    // Teams styled Callout Bubble
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
-                    ctx.moveTo(10, -50); ctx.lineTo(130, -50); ctx.lineTo(130, 10); ctx.lineTo(40, 10); ctx.lineTo(30, 25); ctx.lineTo(30, 10); ctx.lineTo(10, 10);
+                    ctx.moveTo(10, -50); ctx.lineTo(140, -50); ctx.lineTo(140, 10); ctx.lineTo(40, 10); ctx.lineTo(30, 20); ctx.lineTo(30, 10); ctx.lineTo(10, 10);
                     ctx.fill();
-                    ctx.fillStyle = 'black';
-                    ctx.stroke();
+                    ctx.strokeStyle = '#e0e0e0'; ctx.stroke();
 
-                    // Wrapped text inside bubble
-                    drawBoxedText(ctx, m.chickenMessage, 18, -40, 100, 45, "bold 12px Courier New", "#000000");
+                    // Wrapped text
+                    drawBoxedText(ctx, m.chickenMessage, 18, -40, 110, 45, "600 12px 'Segoe UI', Arial", "#242424");
                     
                     ctx.restore();
                 }
@@ -316,7 +325,7 @@
                     title: generateMeetingTitle(),
                     hasChicken: Math.random() < 0.35,
                     chickenMessage: chickenMessages[Math.floor(Math.random() * chickenMessages.length)],
-                    animScale: 0, // Starts at 0 for animation
+                    animScale: 0, 
                     passed: false,
                     chickenEscaped: false
                 });
@@ -334,8 +343,9 @@
                 let m = this.array[i];
                 m.x -= currentScrollSpeed;
                 
-                if (player.x + player.width > m.x && player.x < m.x + this.width) {
-                    if (player.y < m.top || player.y + player.height > canvas.height - m.bottom) handleCollision();
+                // Collision uses the dynamically updated hitWidth and hitHeight
+                if (player.x + player.hitWidth > m.x && player.x < m.x + this.width) {
+                    if (player.y < m.top || player.y + player.hitHeight > canvas.height - m.bottom) handleCollision();
                 }
                 
                 if (m.x + this.width < player.x && !m.passed) {
@@ -349,81 +359,74 @@
         reset: function() { this.array = []; }
     };
 
-    // --- UTILITY: TEXT WRAPPING INSIDE A RIGID BOX ---
+    // --- UTILITY: TEXT WRAPPING ---
     function drawBoxedText(ctx, text, x, y, maxWidth, maxHeight, font, color) {
-        ctx.font = font;
-        ctx.fillStyle = color;
-        ctx.textBaseline = 'top';
+        ctx.font = font; ctx.fillStyle = color; ctx.textBaseline = 'top';
         let words = text.replace(/\n/g, " \n ").split(' ');
-        let line = '';
-        let currentY = y;
-        let lineHeight = parseInt(font, 10) * 1.2;
+        let line = ''; let currentY = y;
+        let lineHeight = parseInt(font.match(/\d+/)[0], 10) * 1.3;
 
         for(let n = 0; n < words.length; n++) {
             if (words[n] === '\n') {
                 ctx.fillText(line, x, currentY);
-                line = ''; currentY += lineHeight;
-                continue;
+                line = ''; currentY += lineHeight; continue;
             }
             let testLine = line + words[n] + ' ';
             let metrics = ctx.measureText(testLine);
             if (metrics.width > maxWidth && n > 0) {
                 if (currentY + lineHeight * 2 > y + maxHeight) {
-                    ctx.fillText(line.trim() + "...", x, currentY); // Truncate to prevent spill
-                    return; 
+                    ctx.fillText(line.trim() + "...", x, currentY); return; 
                 }
                 ctx.fillText(line, x, currentY);
-                line = words[n] + ' ';
-                currentY += lineHeight;
+                line = words[n] + ' '; currentY += lineHeight;
             } else { line = testLine; }
         }
         if (currentY + lineHeight <= y + maxHeight) { ctx.fillText(line, x, currentY); }
+        ctx.textBaseline = 'alphabetic'; // reset
     }
 
     // --- GAME LOOP & LOGIC ---
-    function drawBackgroundParallax() {
-        // Gradient Sky
-        let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        grad.addColorStop(0, "#08051a");
-        grad.addColorStop(0.6, "#2a0845");
-        grad.addColorStop(1, "#6441a5");
-        ctx.fillStyle = grad;
+    function drawBackgroundCalendar() {
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Deep Parallax City
-        ctx.fillStyle = '#0f0822';
-        buildingsLayer2.forEach(b => {
-            b.x -= currentScrollSpeed * 0.1;
-            if(b.x + b.width < 0) b.x = canvas.width + Math.random()*50;
-            ctx.fillRect(b.x, canvas.height - b.height, b.width, b.height);
-        });
+        // Horizontal calendar lines
+        ctx.strokeStyle = '#edebe9'; 
+        ctx.lineWidth = 1;
+        for(let i = 0; i < canvas.height; i+=60) {
+            ctx.beginPath(); ctx.moveTo(50, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        }
 
-        // Mid Parallax City
-        ctx.fillStyle = '#1c0f3d';
-        buildingsLayer1.forEach(b => {
-            b.x -= currentScrollSpeed * 0.3;
-            if(b.x + b.width < 0) b.x = canvas.width + Math.random()*50;
-            ctx.fillRect(b.x, canvas.height - b.height, b.width, b.height);
-        });
-
-        // Retrowave Calendar Grid Floor
-        ctx.strokeStyle = 'rgba(0, 243, 255, 0.2)'; // Cyberpunk cyan
-        ctx.lineWidth = 2;
-        let fgOffset = (frames * currentScrollSpeed) % 60;
-        for(let i = -60; i < canvas.width; i+=60) {
+        // Vertical day separators
+        let fgOffset = (frames * currentScrollSpeed) % 200;
+        for(let i = -200; i < canvas.width; i+=200) {
             ctx.beginPath(); ctx.moveTo(i - fgOffset, 0); ctx.lineTo(i - fgOffset, canvas.height); ctx.stroke();
         }
-        for(let j=0; j<canvas.height; j+=60) {
-            ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(canvas.width, j); ctx.stroke();
+
+        // Time labels on the left (Static)
+        ctx.fillStyle = '#605e5c';
+        ctx.font = "12px 'Segoe UI'";
+        for(let i = 0, hour = 8; i < canvas.height; i+=60, hour++) {
+            ctx.fillText(`${hour}:00 AM`, 5, i + 5);
         }
+
+        // The Red "Current Time" Line
+        ctx.strokeStyle = '#d13438';
+        ctx.lineWidth = 2;
+        let lineY = 400 + Math.sin(frames * 0.02) * 20; // slowly drifting up and down
+        ctx.beginPath(); ctx.moveTo(50, lineY); ctx.lineTo(canvas.width, lineY); ctx.stroke();
+        ctx.fillStyle = '#d13438';
+        ctx.beginPath(); ctx.arc(50, lineY, 4, 0, Math.PI*2); ctx.fill();
     }
 
     function handleCollision() {
+        if (invincibilityTimer > 0) return; // Prevent double hits
+
         if (activePowerUps.shield) {
             activePowerUps.shield = false;
-            player.x += 15; player.velocity = -4; 
+            invincibilityTimer = 60; // 1 second of invincibility to pass the pipe
             screenShake = 12; 
-            spawnParticles(player.x, player.y, '#00f3ff', 30);
+            spawnParticles(player.x, player.y, '#0078d4', 30);
         } else {
             screenShake = 25; 
             triggerGameOver();
@@ -441,70 +444,95 @@
         player.y = 350; player.x = 80; player.velocity = 0;
         meetings.reset(); collectibles.array = []; particles.length = 0;
         activePowerUps = { shield: false, shrinkTimer: 0, slowTimer: 0 };
+        invincibilityTimer = 0;
         frames = 0; daysEscaped = 0; chickenEscapes = 0;
         currentScrollSpeed = baseSpeed; currentGameState = 'PLAYING';
     }
 
-    function drawTextWithShadow(text, x, y, font, color, shadowColor = 'black', shadowOffset = 4) {
-        ctx.font = font; ctx.fillStyle = shadowColor; ctx.fillText(text, x + shadowOffset, y + shadowOffset);
-        ctx.fillStyle = color; ctx.fillText(text, x, y); 
-    }
-
     function drawUI() {
         if (currentGameState === 'START') {
-            ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(0,0, canvas.width, canvas.height);
             ctx.textAlign = "center";
-            drawTextWithShadow("OUT OF OFFICE", canvas.width/2, 250, "bold 36px Courier New", "#00f3ff", "#ff007f");
-            drawTextWithShadow("Tap to Float.", canvas.width/2, 320, "bold 20px Courier New", "#ffffff");
+            
+            ctx.fillStyle = '#5c2d91';
+            ctx.font = "bold 36px 'Segoe UI'"; ctx.fillText("OUT OF OFFICE", canvas.width/2, 250);
+            ctx.fillStyle = '#242424';
+            ctx.font = "18px 'Segoe UI'"; ctx.fillText("Tap to Float. Avoid Meetings.", canvas.width/2, 300);
             
             // Retro Powerup Legend
-            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(canvas.width/2 - 120, 400, 240, 100);
-            drawTextWithShadow("☕ Shield  📶 Slow  🚫 Shrink", canvas.width/2, 450, "bold 14px Courier New", "#ffcc00");
+            ctx.fillStyle = '#f3f2f1';
+            if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(canvas.width/2 - 130, 360, 260, 120, 8); ctx.fill(); }
+            ctx.strokeStyle = '#e0e0e0'; ctx.stroke();
+            
+            ctx.fillStyle = '#242424';
+            ctx.font = "bold 14px 'Segoe UI'"; ctx.fillText("☕ Shield", canvas.width/2 - 50, 390);
+            ctx.fillText("📶 Bad Connection (Slow)", canvas.width/2, 420);
+            ctx.fillText("🚫 Camera Off (Shrink)", canvas.width/2 - 10, 450);
 
             let alpha = Math.abs(Math.sin(frames * 0.05));
-            ctx.fillStyle = `rgba(255, 0, 128, ${alpha})`;
-            ctx.font = "bold 24px Courier New"; ctx.fillText("TAP TO START", canvas.width/2, 600);
+            ctx.fillStyle = `rgba(92, 45, 145, ${alpha})`;
+            ctx.font = "bold 22px 'Segoe UI'"; ctx.fillText("TAP TO JOIN CALENDAR", canvas.width/2, 580);
             ctx.textAlign = "left"; 
         }
         
         if (currentGameState === 'PLAYING') {
-            drawTextWithShadow("Days: " + daysEscaped, 20, 40, "bold 26px Courier New", "#ffffff");
-            if (activePowerUps.shield) drawTextWithShadow("☕", 20, 80, "24px Arial", "white");
-            if (activePowerUps.slowTimer > 0) drawTextWithShadow("📶", 55, 80, "24px Arial", "white");
-            if (activePowerUps.shrinkTimer > 0) drawTextWithShadow("🚫", 90, 80, "24px Arial", "white");
+            ctx.fillStyle = '#242424';
+            ctx.font = "bold 24px 'Segoe UI'"; ctx.fillText("Days: " + daysEscaped, 60, 40);
+            
+            if (activePowerUps.shield) { ctx.fillStyle = '#0078d4'; ctx.fillText("☕", 60, 80); }
+            if (activePowerUps.slowTimer > 0) { ctx.fillStyle = '#107c41'; ctx.fillText("📶", 95, 80); }
+            if (activePowerUps.shrinkTimer > 0) { ctx.fillStyle = '#d83b01'; ctx.fillText("🚫", 130, 80); }
+
+            // Visual feedback for Bad Connection (Slow)
+            if (activePowerUps.slowTimer > 0) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                ctx.fillStyle = '#d13438';
+                ctx.font = "bold 16px 'Segoe UI'"; ctx.textAlign = "center";
+                ctx.fillText("Poor network quality...", canvas.width/2, 60);
+                ctx.textAlign = "left";
+            }
         }
         
         if (currentGameState === 'GAMEOVER') {
             if(screenShake > 0) return; 
             
-            // HD Overlay
-            ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0, canvas.width, canvas.height);
             
-            ctx.fillStyle = '#1c0f3d'; ctx.fillRect(20, 100, canvas.width - 40, canvas.height - 200);
-            ctx.strokeStyle = '#ff007f'; ctx.lineWidth = 6; ctx.strokeRect(20, 100, canvas.width - 40, canvas.height - 200);
+            // Teams Dialog Window
+            ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(15, 125, canvas.width - 30, canvas.height - 250);
+            ctx.fillStyle = '#ffffff';
+            if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(20, 120, canvas.width - 40, canvas.height - 240, 8); ctx.fill(); }
+            
+            // Window Header
+            ctx.fillStyle = '#f3f2f1';
+            if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(20, 120, canvas.width - 40, 50, [8, 8, 0, 0]); ctx.fill(); }
+            ctx.fillStyle = '#242424'; ctx.font = "600 16px 'Segoe UI'"; ctx.fillText("Meeting Ended", 40, 150);
             
             ctx.textAlign = "center";
-            drawTextWithShadow("MEETING JOINED", canvas.width/2, 160, "bold 30px Courier New", "#ff0055");
+            ctx.fillStyle = '#d13438'; ctx.font = "bold 24px 'Segoe UI'"; ctx.fillText("CATASTROPHIC SYNC", canvas.width/2, 220);
             
             ctx.textAlign = "left";
-            drawBoxedText(ctx, currentGameOverText, 40, 220, canvas.width - 80, 100, "bold 18px Courier New", "#ffffff");
+            drawBoxedText(ctx, currentGameOverText, 40, 260, canvas.width - 80, 100, "16px 'Segoe UI'", "#242424");
             
-            ctx.textAlign = "center";
-            drawTextWithShadow("Days Escaped: " + daysEscaped, canvas.width/2, 380, "bold 26px Courier New", "#00f3ff");
-            drawTextWithShadow("Polaroids Pinned: " + chickenEscapes, canvas.width/2, 420, "bold 18px Courier New", "#ffcc00");
+            // Stats styling like an attendance report
+            ctx.fillStyle = '#f3f2f1'; ctx.fillRect(40, 360, canvas.width - 80, 80);
+            ctx.fillStyle = '#242424';
+            ctx.font = "bold 18px 'Segoe UI'"; ctx.fillText("Focus Days Saved: " + daysEscaped, 60, 390);
+            ctx.font = "16px 'Segoe UI'"; ctx.fillText("Polaroids (Chickens Dodged): " + chickenEscapes, 60, 420);
 
-            // Buttons
-            ctx.fillStyle = '#25D366'; ctx.fillRect(45, 500, 160, 55); // WA
-            ctx.fillStyle = '#E1306C'; ctx.fillRect(245, 500, 160, 55); // IG
-            ctx.fillStyle = '#000000'; ctx.fillRect(45+4, 500+4, 160, 55); ctx.fillRect(245+4, 500+4, 160, 55); // Button shadows
-            ctx.fillStyle = '#25D366'; ctx.fillRect(45, 500, 160, 55); ctx.fillStyle = '#E1306C'; ctx.fillRect(245, 500, 160, 55); 
+            // Buttons Teams Style
+            ctx.textAlign = "center";
+            ctx.fillStyle = '#25D366'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(45, 470, 160, 45, 4); ctx.fill(); }
+            ctx.fillStyle = '#E1306C'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(245, 470, 160, 45, 4); ctx.fill(); }
             
-            ctx.fillStyle = 'white'; ctx.font = "bold 18px Courier New";
-            ctx.fillText("WA Status", 125, 535); ctx.fillText("IG Story", 325, 535);
+            ctx.fillStyle = 'white'; ctx.font = "600 15px 'Segoe UI'";
+            ctx.fillText("Share to WA", 125, 498); ctx.fillText("Share to IG", 325, 498);
             
+            // "Leave" Rejoin button
             let alpha = Math.abs(Math.sin(frames * 0.05));
-            ctx.fillStyle = `rgba(0, 243, 255, ${alpha})`; ctx.font = "bold 16px Courier New";
-            ctx.fillText("Tap anywhere to Rejoin", canvas.width/2, 630);
+            ctx.fillStyle = `rgba(92, 45, 145, ${alpha})`; ctx.font = "bold 18px 'Segoe UI'";
+            ctx.fillText("Tap anywhere to Rejoin", canvas.width/2, 590);
             ctx.textAlign = "left"; 
         }
     }
@@ -512,11 +540,11 @@
     function loop() {
         ctx.save();
         if (screenShake > 0 && currentGameState === 'GAMEOVER') {
-            let dx = (Math.random() - 0.5) * 25; let dy = (Math.random() - 0.5) * 25;
+            let dx = (Math.random() - 0.5) * 20; let dy = (Math.random() - 0.5) * 20;
             ctx.translate(dx, dy); screenShake--;
         }
 
-        drawBackgroundParallax();
+        drawBackgroundCalendar();
 
         if (currentGameState === 'PLAYING') {
             player.update(); collectibles.update(); meetings.update();
